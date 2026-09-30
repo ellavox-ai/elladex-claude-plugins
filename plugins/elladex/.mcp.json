@@ -1,0 +1,8 @@
+{
+	"mcpServers": {
+		"elladex": {
+			"type": "http",
+			"url": "https://elacity-mcp-main.fly.dev/elladex/mcp"
+		}
+	}
+}

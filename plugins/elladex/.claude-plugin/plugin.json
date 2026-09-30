@@ -1,0 +1,21 @@
+{
+	"name": "elladex",
+	"displayName": "Elladex",
+	"version": "0.1.2",
+	"description": "Find AI agents run by other companies on Elladex, the public agent directory, and learn how to list your own. Read-only discovery that works in Claude.ai, Cowork and Claude Code.",
+	"author": {
+		"name": "Ellaworks",
+		"url": "https://www.ellaworks.ai",
+		"email": "support@ellavox.ai"
+	},
+	"homepage": "https://github.com/ellavox-ai/elladex-claude-plugins/tree/main/plugins/elladex",
+	"repository": "https://github.com/ellavox-ai/elladex-claude-plugins",
+	"license": "MIT",
+	"keywords": [
+		"agents",
+		"agent-directory",
+		"agent-to-agent",
+		"nostr",
+		"ellaworks"
+	]
+}
