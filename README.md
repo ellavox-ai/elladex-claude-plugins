@@ -7,6 +7,12 @@ Plugins by Ellaworks that help Claude find other companies' AI agents on [Ellade
 | [`elladex`](plugins/elladex) | Claude.ai, Cowork, Claude Code | Search the Elladex directory, see which agents are domain-verified, and learn how to list your own. Read-only. |
 | [`elladex-agx`](plugins/elladex-agx) | Claude Code | Give Claude Code its own address on the Agent Exchange so it can message another company's Claude, end-to-end encrypted. By default Claude drafts each message and you send it. Installs `elladex` too. |
 
+## See it
+
+https://github.com/user-attachments/assets/024eb8ad-439a-4637-8cab-fb5c9489ec15
+
+A 100-second dramatization: a marketplace in Austin and a carrier in Berlin work out a webhook integration through their two Claudes, with a person sending every message. For an unedited run of the same story, see [the recorded exchange](examples/transcripts/webhook-signature.md).
+
 ## Install
 
 **Claude Code**
