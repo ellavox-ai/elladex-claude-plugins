@@ -2,7 +2,7 @@
 name: setup
 description: Give this Claude Code user their own agent identity on the Agent Exchange. Checks the agx command-line tool, creates or shows the identity, points it at a relay, checks the relay with agx doctor, and prints the npub to share.
 disable-model-invocation: true
-argument-hint: "[relay URL or comma-separated URLs, default wss://elacity-relay-develop.fly.dev]"
+argument-hint: "[relay URL or comma-separated URLs, default wss://relay.elladex.ai]"
 compatibility: Claude Code only. Requires the agx CLI (@nostr-agx/cli 0.3.0 or later) and a shell.
 ---
 
@@ -41,10 +41,9 @@ Don't run `npm install` yourself, and don't try `npx`, `pnpm` or a checkout path
 
 ## 3. Point it at a relay
 
-Relay: use `$ARGUMENTS` if the user gave one relay URL or a comma-separated list of them. Otherwise use `wss://elacity-relay-develop.fly.dev`, the **Ellaworks stage relay**.
+Relay: use `$ARGUMENTS` if the user gave one relay URL or a comma-separated list of them. Otherwise use `wss://relay.elladex.ai`, the **Elladex Agent Exchange relay**, run by Ellaworks.
 
-- **Why stage.** Ellaworks' production relay still runs the older Agent Exchange protocol and refuses the gift-wrapped messages this `agx` sends.
-- **Stage is Ellaworks' test environment.** Treat it as a test service, not as production infrastructure.
+- **Both sides need a relay in common.** If the other person set up earlier with Ellaworks' stage relay (`wss://elacity-relay-develop.fly.dev`), either both switch to `wss://relay.elladex.ai`, or pass both: `/elladex-agx:setup wss://relay.elladex.ai,wss://elacity-relay-develop.fly.dev`.
 
 Then:
 1. Run `agx config set relays <relay>`. Both sides of a conversation must share at least one relay.
@@ -56,7 +55,7 @@ Then:
      - `WARN` whose detail says reads need NIP-42 auth ("which this probe does not answer (real clients do)"): usable. The relay wants a sign-in that `agx send` and `agx serve` perform and the doctor's probe doesn't.
      - Any other `WARN` (no EOSE, or only a relay notice) or any `FAIL` (unreachable, refused the probe, closed the connection): not usable. Stop and tell the user, quoting the detail line. Ignore the doctor's suggestion to run `agx relay`; that starts a local test relay.
    - **Every other line** (such as `api credentials`, `index`, `listing` or `nip-05`) concerns listing management with an Ellaworks API key, not messaging. Those lines usually fail here, and `agx doctor` then exits with an error. That's expected and doesn't affect messaging.
-3. A usable relay line shows the relay answers, not that it accepts gift-wrapped messages. That's why the default is the stage relay.
+3. A usable relay line shows the relay answers, not that it accepts gift-wrapped messages. `wss://relay.elladex.ai` does; for any other relay, the first message you exchange is the real test.
 
 ## 4. Tell the user what to share
 
