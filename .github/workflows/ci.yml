@@ -32,3 +32,16 @@ jobs:
       - run: claude plugin validate . --strict
       - run: claude plugin validate plugins/elladex --strict
       - run: claude plugin validate plugins/elladex-agx --strict
+
+  examples:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - run: for f in examples/two-claudes/*.sh; do bash -n "$f"; done
+      - run: node --check examples/two-claudes/story.mjs
+      - run: node --test examples/two-claudes/*.test.mjs
+      - run: node --test examples/two-claudes/templates/berlin-carrier/test/*.test.mjs
+      - run: python3 -c "import json; json.load(open('examples/team-setup/.claude/settings.json'))"
