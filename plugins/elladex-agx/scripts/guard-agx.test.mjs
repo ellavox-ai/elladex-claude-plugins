@@ -435,7 +435,7 @@ describe("trust changes ask", () => {
 		`agx identity deny ${NPUB}`,
 		"agx identity register --slug me",
 		"agx register --slug me",
-		"agx config set relays wss://elacity-relay-develop.fly.dev",
+		"agx config set relays wss://relay.elladex.ai",
 		"agx config use work",
 		"agx peers accept --team t --peer p",
 		"agx peers allowlist --team t --npub n",

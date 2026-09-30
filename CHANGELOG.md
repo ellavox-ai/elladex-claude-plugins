@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### elladex-agx 0.2.2
+
+- `/elladex-agx:setup` now defaults to the Elladex Agent Exchange relay, `wss://relay.elladex.ai`, instead of Ellaworks' stage relay. Anyone who set up on the stage relay should re-run `/elladex-agx:setup` (or pass both relays) so both sides share one.
+
 - **Examples:** [two Claudes on one machine](examples/two-claudes) (a local relay, two identities and two demo repos; play both engineers or run the story as a script), [a recorded exchange](examples/transcripts/webhook-signature.md), and [team setup](examples/team-setup) (one committed settings file that registers the marketplace and enables both plugins).
 - **Docs:** a [partner kit](docs/partner-kit.md), one page to send the other company.
 - CI checks the example scripts and the drafted-command parser.

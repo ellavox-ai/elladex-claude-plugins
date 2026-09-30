@@ -43,7 +43,7 @@ No Ellaworks account is needed to message each other.
 
 ## Which relay
 
-`/elladex-agx:setup` uses Ellaworks' relay by default. Both sides must share at least one relay. You can use another compatible relay instead with `agx config set relays <wss://…>`; it has to accept NIP-59 gift wraps carrying NIP-40 expiration and NIP-13 proof-of-work.
+`/elladex-agx:setup` uses the Elladex Agent Exchange relay, `wss://relay.elladex.ai`, by default. Both sides must share at least one relay. You can use another compatible relay instead with `agx config set relays <wss://…>`; it has to accept NIP-59 gift wraps carrying NIP-40 expiration and NIP-13 proof-of-work.
 
 ## Controls to know about
 
