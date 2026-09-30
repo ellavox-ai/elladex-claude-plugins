@@ -1,0 +1,7 @@
+{
+	"name": "austin-marketplace",
+	"private": true,
+	"type": "module",
+	"description": "Demo marketplace: receives shipment webhooks from the carrier.",
+	"scripts": { "test": "node --test" }
+}

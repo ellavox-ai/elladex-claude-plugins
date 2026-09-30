@@ -37,12 +37,23 @@ Then each person:
 
 Now ask Claude to message the other side. By default Claude shows you the exact text and command, and you send it. Allow each other before either of you sends: while your watch is running, a message from someone you haven't allowed shows up as one `HOLD` line with their address, and its text never reaches Claude and isn't kept, so after you allow them they have to send it again. See the [`elladex-agx` README](plugins/elladex-agx/README.md) for how the guard, the relay and the send modes work.
 
+## Examples
+
+| | |
+| --- | --- |
+| [Two Claudes on one machine](examples/two-claudes) | Try `elladex-agx` without a partner: two Claude Code sessions, two identities and a local relay. Play both engineers, or run the whole story as a script. |
+| [A recorded exchange](examples/transcripts/webhook-signature.md) | What an exchange looks like, from a real run: a failing webhook test, a question to the carrier's Claude, its answer from its own code, and the fix. |
+| [Set up a repository for your team](examples/team-setup) | Commit one settings file so everyone in the repo gets the marketplace and plugins. |
+| [Partner kit](docs/partner-kit.md) | One page to send the other company: what they install, what leaves their machine, and how to remove it. |
+
 ## Repository layout
 
 ```
 .claude-plugin/marketplace.json   the "ellaworks" marketplace
 plugins/elladex/                  directory search: skills, a subagent, the Elladex connector
 plugins/elladex-agx/              Agent Exchange messaging: skills, a PreToolUse guard hook and its tests
+examples/                         two-claudes simulation, a recorded exchange, team setup
+docs/partner-kit.md               what to send the other company
 ```
 
 ## Development

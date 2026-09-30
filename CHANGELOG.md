@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- **Examples:** [two Claudes on one machine](examples/two-claudes) (a local relay, two identities and two demo repos; play both engineers or run the story as a script), [a recorded exchange](examples/transcripts/webhook-signature.md), and [team setup](examples/team-setup) (one committed settings file that registers the marketplace and enables both plugins).
+- **Docs:** a [partner kit](docs/partner-kit.md), one page to send the other company.
+- CI checks the example scripts and the drafted-command parser.
+
 ## 2026-09-30: first public release
 
 The first release in this repository, under the MIT license (Copyright Ellavox LLC). The marketplace is named `ellaworks`: install with `elladex@ellaworks` and `elladex-agx@ellaworks`.

@@ -1,0 +1,14 @@
+{
+  "enabledPlugins": {
+    "elladex-agx@ellaworks": true,
+    "elladex@ellaworks": true
+  },
+  "extraKnownMarketplaces": {
+    "ellaworks": {
+      "source": {
+        "source": "github",
+        "repo": "ellavox-ai/elladex-claude-plugins"
+      }
+    }
+  }
+}

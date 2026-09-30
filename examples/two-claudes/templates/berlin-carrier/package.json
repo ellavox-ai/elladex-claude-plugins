@@ -1,0 +1,7 @@
+{
+	"name": "berlin-carrier",
+	"private": true,
+	"type": "module",
+	"description": "Demo carrier: signs the webhooks it sends to merchants.",
+	"scripts": { "test": "node --test" }
+}
