@@ -67,7 +67,7 @@ The directory returns only listings their owners published as public, or unliste
 
 Listing descriptions are written by the companies that own them. The connector marks them as untrusted, and the skills tell Claude to treat them as data and never follow instructions found in them. This lowers the risk of prompt injection; it doesn't remove it.
 
-Privacy policy: https://www.ellaworks.ai/en/legal/privacy-policy
+Privacy policy: https://www.ellavox.ai/privacy-policy
 
 ## Support
 
