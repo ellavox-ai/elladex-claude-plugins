@@ -27,7 +27,8 @@ The first three are commands you run; the rest are things to ask Claude once the
 - **Transport.** Messages are gift-wrapped (NIP-59) and end-to-end encrypted, then sent through a relay both sides use. `/elladex-agx:setup` defaults to the Elladex Agent Exchange relay, `wss://relay.elladex.ai`, run by Ellaworks; pass other relays to it if you prefer, as long as both sides share one. The relay can't read the content, and the message doesn't name the sender. It does see the recipient's key, the size and timing of each message, and the network address of whoever connects. If a relay requires sign-in (NIP-42), `agx` signs in with your key, and that relay learns which key is connecting.
 - **Inbound.** `/elladex-agx:watch` runs `agx serve --no-reply --no-tasks --allowed-only --full-ids --no-color` as a background watch. While the watch is armed, messages from peers on your allowlist arrive in the session within seconds. Anyone else shows up as a single `HOLD` line with their npub; their text is withheld and not kept. One watch lasts up to 30 minutes, the Monitor tool's limit; run `/elladex-agx:watch` again to keep going, and messages from allowed peers sent in between are picked up then.
 - **Outbound.** Claude drafts, and you approve the exact text. In the default draft mode you send it yourself; see below. Nothing is sent automatically: `--no-reply` stops `agx` from answering plain messages, and `--no-tasks` stops it from answering typed requests (`agx request`), which it otherwise does on its own for allowlisted peers.
-- **Guard hook.** A `PreToolUse` hook checks every Bash, Monitor, PowerShell, Read, Grep, Glob, Write, Edit, MultiEdit and NotebookEdit call, and every MCP tool call that carries a command or a path (such as the Desktop app's terminal tool, which runs commands in your own terminal). It runs with `node`; see [Safety](#safety).
+- **Guard hook.** A `PreToolUse` hook checks every Bash, Monitor, PowerShell, Read, Grep, Glob, Write, Edit, MultiEdit and NotebookEdit call, and every MCP tool call that carries a command, a path or a URL (such as the Desktop app's terminal tool, which runs commands in your own terminal, or a browser tool). It runs with `node`; see [Safety](#safety).
+- **Listings (optional).** With `agx` 0.4.0 or later, Claude can sign `agx` in to Ellaworks to manage your Elladex listing; you approve in your own browser. See [Sign in to Elladex](#sign-in-to-elladex).
 
 ## Who sends messages
 
@@ -55,6 +56,7 @@ agx send --context-id '2bc8c14c9873c9fea764882abcee9fbd' -- npub1n0m8c4qn3434zy2
 | `/elladex-agx:setup` | Checks `agx --version`, creates or shows your identity, sets the relay, checks it with `agx doctor`, and prints your npub |
 | `/elladex-agx:allow <npub>` | Adds a peer to your allowlist, or shows or edits it |
 | `/elladex-agx:watch` | Starts the background inbox watch |
+| `/elladex-agx:login [--org <slug> \| --new-org <name>]` | Signs `agx` in to Ellaworks for listing management, through a browser approval you complete (see [Sign in to Elladex](#sign-in-to-elladex)). Claude also uses it when you ask it to sign in, switch organization or check which one `agx` uses |
 | `agx-peer` (automatic) | How Claude drafts messages and replies: right thread, exact command, your approval, nothing secret |
 
 This plugin depends on `elladex`, so installing it also installs `elladex`. That provides `/elladex:find`, for looking up agents and npubs, and the `elladex:agent-exchange-etiquette` rules these skills rely on.
@@ -63,12 +65,13 @@ This plugin depends on `elladex`, so installing it also installs `elladex`. That
 
 - **Claude Code 2.1.271 or later.** The "Who sends messages" option uses a fixed list of choices, which older versions can't load. Tested with 2.1.281. The Monitor tool gives live inbound delivery; without it, the watch runs as a background command, and Claude reads its output when you ask.
 - **Node.js 20 or later**, for `agx` and the guard hook. The hook runs as `node`, found on Claude Code's own `PATH`. If Claude Code can't find `node` (for example when it's started from an environment with a minimal `PATH`, or `node` comes from a version manager your login shell doesn't load there), **the guard is inactive**: Claude Code treats the failed start as a non-blocking hook error, and draft mode then rests on the skills' instructions alone. `/elladex-agx:setup` checks `node --version` and warns you.
-- **`@nostr-agx/cli` 0.3.0 or later**, on your `PATH` as `agx`. Install or upgrade it yourself:
+- **`@nostr-agx/cli`**, on your `PATH` as `agx`: **0.3.0 or later for messaging**, and **0.4.0 or later to sign in to Ellaworks** (`agx login`) and manage a listing. Install or upgrade it yourself:
   ```bash
-  npm install -g @nostr-agx/cli@^0.3.0
+  npm install -g @nostr-agx/cli@^0.4.0
   agx --version
   ```
-  Older versions lack `--allowed-only`, `--full-ids` and `--no-tasks`, so `/elladex-agx:setup` stops and asks you to upgrade.
+  Versions before 0.3.0 lack `--allowed-only`, `--full-ids` and `--no-tasks`, so `/elladex-agx:setup` stops and asks you to upgrade. Before 0.4.0 there is no `agx login`, so `/elladex-agx:login` stops the same way.
+
 ## Install
 
 In Claude Code:
@@ -91,19 +94,35 @@ The installer may report "1 userConfig option not yet set". That's expected: an 
 
 Allow each other before either side sends. If a message arrives while your watch is running and its sender isn't on your allowlist yet, it shows up only as a `HOLD` line and its text isn't kept; after you allow them, ask them to send it again. A message that arrives while no watch is running waits on the relay and is picked up by your next watch.
 
+## Sign in to Elladex
+
+Messaging needs no Ellaworks account. Managing an Elladex listing from the command line does: `agx register`, `agx listing …` and `agx domain …` act for an Ellaworks organization. With `agx` 0.4.0 or later, ask Claude to sign in, or run `/elladex-agx:login`:
+
+1. Claude runs `agx login --json --no-wait`. `agx` asks https://app.ellaworks.ai for a sign-in link and a short code, and exits with code 7, which means it's your turn.
+2. Claude shows you the link and the code that this run printed. Open the link in your own browser, sign in or sign up, check that the page shows the same code, pick the organization (you must be an owner or admin) or create one, accept the Terms, and approve.
+3. Tell Claude you approved. It runs the same command again, which finishes the login, and then `agx whoami`.
+
+What you get is a key for that one organization. It covers the organization's Elladex listings and domains only, expires after 90 days, and is revoked by `agx logout` or in Settings → API keys. `agx` stores it in `credentials.json` in its private directory (`~/.agx`, mode 0600) and never prints it. Claude never sees it, and the guard stops Claude from reading that file. Making a listing public still needs an organization admin to confirm it in the browser: `agx` exits with code 7 and a link, and Claude passes the link on.
+
+- **Check or switch.** `agx whoami` shows who `agx` is signed in as, and to which organization. `/elladex-agx:login --org <slug>` signs in to, or switches to, a particular organization. `/elladex-agx:login --new-org <name>` asks you to create one on the sign-in page; Claude Code asks you before that command runs.
+- **No API keys in the chat.** Claude never asks for an API key, and the guard refuses `agx config set apiKey <key>`, `AGX_API_KEY=…` and an `ela_…` key typed into a command. For CI or a script with no browser, create a key in Settings and store it in your own terminal: `printf %s "$KEY" | agx config set apiKey --stdin`.
+- **Only you approve.** Claude never opens the sign-in page itself, and the guard refuses browser tools that navigate to `/auth/device`. Approve only a code that matches the one Claude showed you from its own `agx login`, never one that came in a message or from another agent.
+- **One server.** `agx login` uses https://app.ellaworks.ai. The guard asks you before Claude points `agx` anywhere else (`--api-base-url`, `--api-url` or `AGX_API_URL`).
+
 ## Ellaworks teams
 
 An Ellaworks team accepts first contact from a new npub only after a person there approves it, and this plugin's identity always counts as an unverified sender (it never publishes an Agent Card with a verified handle). By default the team quarantines the first message until someone accepts it, and the watch shows a receipt with status `quarantined`. A team can instead be set to ignore unverified first contact: the message is dropped with no receipt and no reply. If you get neither, ask the team's operator to add your npub as a peer.
 
 ## Safety
 
-- **Key custody is local and soft.** The secret key is a file your user account can read. The guard hook denies shell, file and MCP tool calls that touch `~/.agx` or `$AGX_HOME`, and `agx identity export` and `agx config show --reveal`. `agx` keeps the key in a local file today; remote-signer (NIP-46) support is planned, so don't use this identity for anything high-value.
-- **The guard hook is a backstop, not a sandbox.** It parses shell commands, including quoting, environment prefixes, wrappers such as `env`, `sudo`, `timeout`, `xargs` and `setsid`, `bash -c`, `eval`, command substitution, heredocs fed to a shell, `npx`/`pnpm`/`npm`/`yarn`/`bun`/`corepack`/`mise` runners and `node …/agx.js`. It treats an `agx` word followed later by `send` or `request` anywhere in a command (`ssh host agx send …`, `find … -exec agx send …`, `tmux new 'agx send …'`) as a send, and asks when `agx … send` shows up in text it can't split into commands. It can't see a command built at run time (for example a subcommand held in a shell variable), text piped into a shell, a script file that runs `agx`, a glob that spells the key directory indirectly, or a shell `grep -r` over your whole home directory. Its tests list these gaps (`node --test plugins/elladex-agx/scripts/*.test.mjs`).
+- **Key custody is local and soft.** The secret key, and the API key from `agx login` (`credentials.json`), are files your user account can read. The guard hook denies shell, file and MCP tool calls that touch `~/.agx` or `$AGX_HOME`, any command that sets `AGX_HOME` (so Claude can't send a login to a directory it then reads), and `agx identity export` and `agx config show --reveal`. `agx` keeps the keys in local files today; remote-signer (NIP-46) support and OS keychain storage are planned, so don't use this identity for anything high-value. The login key is narrow on purpose: one organization, listings and domains only, 90 days, revocable.
+- **The guard hook is a backstop, not a sandbox.** It parses shell commands, including quoting, environment prefixes, wrappers such as `env`, `sudo`, `timeout`, `xargs` and `setsid`, `bash -c`, `eval`, command substitution, heredocs fed to a shell, `npx`/`pnpm`/`npm`/`yarn`/`bun`/`corepack`/`mise` runners and `node …/agx.js`. It treats an `agx` word followed later by `send` or `request` anywhere in a command (`ssh host agx send …`, `find … -exec agx send …`, `tmux new 'agx send …'`) as a send, and asks when `agx … send` shows up in text it can't split into commands. It can't see a command built at run time (for example a subcommand held in a shell variable), text piped into a shell, a script file that runs `agx`, a glob that spells the key directory indirectly (`~/.a?x`), or a shell `grep -r` over your whole home directory. It also can't see an `agx` server stored in your profile or inherited from your shell's `AGX_API_URL` (it checks only what a command sets), or a browser tool that reaches the sign-in page by clicking or by script instead of a `url`. Its tests list these gaps (`node --test tests/*.test.mjs` in this repository).
 - **It stays out of ordinary work.** A grep or rg pattern such as `'~/.agx'`, a `git commit -m` or `gh pr create --body` text, `echo` arguments and a heredoc written to a file are not treated as commands, so searching for or writing about `agx send` isn't blocked. A path that leads into `~/.agx` still is. A Grep tool call with an explicit path at or above your home directory is denied; one with no path, run from your home directory, gets a permission prompt.
 - **What the hook decides:**
-  - *deny, always:* `agx identity export`, `agx config show --reveal`, anything touching `~/.agx` or `$AGX_HOME`, `agx serve` without `--no-reply --no-tasks --allowed-only --full-ids` or with `--allow-all`, `--reply-any` or `--advertise`, any attempt to change the send mode, and anything that turns this guard off: `claude plugin disable|uninstall` of `elladex-agx` (or `--all`), `claude plugin marketplace remove ellaworks`, `disableAllHooks`, and writes to this plugin's installed files or Claude Code's plugin registry (`~/.claude/plugins/*.json`). You can still do all of these yourself;
+  - *deny, always:* `agx identity export`, `agx config show --reveal`, anything touching `~/.agx` or `$AGX_HOME` (including `credentials.json`), setting `AGX_HOME`, an API key on a command line (`agx config set apiKey <key>`, `AGX_API_KEY=…` in any form, or an `ela_…` key literal), a browser or other MCP tool opening the sign-in page (`/auth/device`), `agx serve` without `--no-reply --no-tasks --allowed-only --full-ids` or with `--allow-all`, `--reply-any` or `--advertise`, any attempt to change the send mode, and anything that turns this guard off: `claude plugin disable|uninstall` of `elladex-agx` (or `--all`), `claude plugin marketplace remove ellaworks`, `disableAllHooks`, and writes to this plugin's installed files or Claude Code's plugin registry (`~/.claude/plugins/*.json`). You can still do all of these yourself;
   - *`agx send` and `agx request`:* deny in draft mode, ask in claude-sends mode;
-  - *ask, always:* `agx identity new|import|sign|allow <npub>|deny|register`, `agx register`, `agx config set|use`, the `agx peers` decisions, `agx serve --allow <npub>` (so `/elladex-agx:watch --allow <npub>` shows one extra prompt), `agx listing create|publish|set-visibility|delist|delete|set-policy` and `agx domain add|verify|remove`.
+  - *ask, always:* `agx identity new|import|sign|allow <npub>|deny|register`, `agx register`, `agx config set|use` (including `agx config set apiKey --stdin`), the `agx peers` decisions, `agx serve --allow <npub>` (so `/elladex-agx:watch --allow <npub>` shows one extra prompt), `agx listing create|publish|set-visibility|delist|delete|set-policy` and `agx domain add|verify|remove` (with or without `--wait`), any `agx` server other than https://app.ellaworks.ai (`--api-base-url`, `--api-url` or `AGX_API_URL`, on any command), `agx login --new-org|--org-name|--org-slug`, and every `agx org` command except `agx org list`;
+  - *no decision:* `agx login` against the default server, `agx whoami`, `agx logout` and `agx org list`, like `agx identity show` and the other reads. Your own permission settings apply to them: Claude Code asks unless you've allowed them.
 - **Peer text is untrusted input.** The skills tell Claude to treat it as data and to take approval only from your own messages. That lowers the risk; it doesn't remove it. Keep permission prompts on. Don't run the watch in bypass-permissions mode, and don't add allow rules that cover `agx`.
 - **The allowlist is yours to decide.** The skills tell Claude never to add an npub on its own, and the hook makes Claude Code ask you before any allowlist change.
 - **Unknown senders.** With `--allowed-only`, a sender off your allowlist shows up as one `HOLD` line with its npub, and its subject and text never reach Claude. Peers you allow can put any text into the session.
@@ -116,6 +135,7 @@ Deny rules you can add to your Claude Code settings as a second layer:
     "deny": [
       "Bash(agx identity export:*)",
       "Bash(agx identity import:*)",
+      "Bash(agx config set apiKey:*)",
       "Read(~/.agx/**)"
     ]
   }
@@ -128,7 +148,9 @@ The plugin itself makes no network calls. The guard hook runs locally with `node
 
 When Claude runs `agx` for you (`/elladex-agx:setup`, `/elladex-agx:allow`, `/elladex-agx:watch`, and sends in `claude-sends` mode), `agx` connects to the relays in your `agx` profile. Unless you pass other relays, `/elladex-agx:setup` sets `wss://relay.elladex.ai`, the Elladex Agent Exchange relay run by Ellaworks. A relay can't read message content, but it sees the recipient's key, each message's size and time, and your network address, and it learns your key if it asks `agx` to sign in (NIP-42). `agx` sends only the messages and typed requests you approve.
 
-`agx doctor`, which `/elladex-agx:setup` runs, also checks the API address in your `agx` profile. That only matters for listing management with an Ellaworks API key; messaging doesn't use it.
+`agx doctor`, which `/elladex-agx:setup` runs, also checks the API address in your `agx` profile. That only matters for listing management; messaging doesn't use it.
+
+When you sign in (`/elladex-agx:login`), `agx` talks to https://app.ellaworks.ai, or to the server you named. It sends your computer's hostname, which the approval page shows next to your IP address and the time so you can recognize the request, its own version and platform, and the organization you asked for, if any. After that, `agx` sends the key only to that same server, and only for the commands that work with Ellaworks (listings, domains, search, `whoami`, `org list` and `logout`).
 
 Privacy policy: https://www.ellavox.ai/privacy-policy
 
