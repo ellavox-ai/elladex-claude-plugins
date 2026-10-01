@@ -6,31 +6,43 @@
  * Glob, Write, Edit, MultiEdit and NotebookEdit call, and every MCP tool call
  * (hooks/hooks.json): an MCP tool's `command`, `cmd` or `script` input is
  * checked like Bash (the Desktop terminal tool runs commands in the user's own
- * shell), and its path inputs like Read. It reads the hook input as JSON on
+ * shell), its path inputs like Read, and its `url` input (a browser tool's)
+ * against the sign-in approval page. It reads the hook input as JSON on
  * stdin, and from the environment only the plugin's `send_mode` option
  * (CLAUDE_PLUGIN_OPTION_SEND_MODE) and AGX_HOME (see `guardEnv`). It prints a
  * `hookSpecificOutput` decision of deny or ask, or nothing at all when it has
  * no opinion; it never approves a tool call:
  *
  *   deny   `agx identity export`, `agx config show --reveal`, any tool call that
- *          touches ~/.agx or $AGX_HOME (the secret key and the allowlist live
- *          there), `agx serve` without the watch's safe flags or with
- *          --allow-all, --reply-any or --advertise, and any attempt to change
- *          the send mode (`send_mode=` in a command, or a Claude settings file
- *          written with send_mode, claude-sends or elladex-agx in it), and
- *          anything that turns this guard off: `claude plugin
- *          disable|uninstall` of elladex-agx (or `--all`), removing the
- *          `ellaworks` marketplace, `disableAllHooks`, and writes to this
- *          plugin's installed files or Claude Code's plugin registry.
+ *          touches ~/.agx or $AGX_HOME (the secret key, the allowlist and the
+ *          `agx login` key in credentials.json live there), setting AGX_HOME
+ *          at all, an API key on a command line (`agx config set apiKey
+ *          <value>`, `AGX_API_KEY=…`, or an `ela_…` key literal), an MCP tool
+ *          (a browser) opening the sign-in approval page `/auth/device`, `agx
+ *          serve` without the watch's safe flags or with --allow-all,
+ *          --reply-any or --advertise, and any attempt to change the send mode
+ *          (`send_mode=` in a command, or a Claude settings file written with
+ *          send_mode, claude-sends or elladex-agx in it), and anything that
+ *          turns this guard off: `claude plugin disable|uninstall` of
+ *          elladex-agx (or `--all`), removing the `ellaworks` marketplace,
+ *          `disableAllHooks`, and writes to this plugin's installed files or
+ *          Claude Code's plugin registry.
  *   send   `agx send` / `agx request`: deny in draft mode (the default; the user
  *          runs the command), ask in claude-sends mode (a permission prompt even
  *          when Bash is allowlisted).
  *   ask    trust and publishing changes: `agx identity new|import|sign|allow
- *          <npub>|deny|register`, `agx register`, `agx config set|use`, the `agx
- *          peers` decisions, `agx serve --allow`, `agx listing create|publish|
- *          set-visibility|delist|delete|set-policy` and `agx domain
- *          add|verify|remove`. Also a Grep with no path whose working directory
- *          contains ~/.agx, and agx send/request text in a form it can't parse.
+ *          <npub>|deny|register`, `agx register`, `agx config set|use`
+ *          (including `config set apiKey --stdin`), the `agx peers` decisions,
+ *          `agx serve --allow`, `agx listing create|publish|set-visibility|
+ *          delist|delete|set-policy` and `agx domain add|verify|remove`. Also
+ *          any agx server other than https://app.ellaworks.ai (`--api-base-url`,
+ *          `--api-url` or AGX_API_URL), `agx login --new-org|--org-name|
+ *          --org-slug`, every `agx org` subcommand except `list`, a Grep with
+ *          no path whose working directory contains ~/.agx, and agx
+ *          send/request text in a form it can't parse.
+ *   none   everything else, including `agx login` against the default server,
+ *          `agx whoami`, `agx logout` and `agx org list`: Claude Code's own
+ *          permission rules decide.
  *
  * This is a backstop, not a sandbox. It parses shell well enough to see through
  * quoting, env prefixes, wrappers (env, sudo, timeout, xargs, setsid, …),
@@ -40,8 +52,11 @@
  * command (`ssh host agx send …`, `find -exec agx send …`) as a send. It cannot
  * see a command built at run time, for example a subcommand held in a variable
  * (`v=send; agx $v …`), text piped into a shell, a script file that runs agx,
- * a glob that spells the key directory indirectly (`~/.a?x`), or a shell search
- * of the whole home directory (`grep -r … ~`). The tests list these gaps.
+ * a glob that spells the key directory indirectly (`~/.a?x`), a shell search
+ * of the whole home directory (`grep -r … ~`), an agx server stored in the
+ * profile or inherited from the shell's AGX_API_URL, or a browser tool that
+ * reaches the approval page by clicking or by script rather than by a `url`
+ * input. The tests list these gaps.
  *
  * It tries not to get in the way of ordinary work: the pattern of grep/rg and
  * the message of `git commit -m` / `gh pr create --body` are text, not paths or
@@ -80,6 +95,56 @@ const LISTING_WRITES = new Set([
 	"set-policy",
 ]);
 const DOMAIN_WRITES = new Set(["add", "verify", "remove"]);
+
+/** The Ellaworks server `agx login` uses by default. Must equal agx's
+ * `DEFAULT_API_BASE_URL` (agx 0.4.0, src/lib/config.ts). */
+const DEFAULT_API_ORIGIN = "https://app.ellaworks.ai";
+/** agx options that name the server: `agx login --api-base-url`, and the
+ * shorter spelling some commands take. */
+const API_BASE_OPTION = /^--api(?:-base)?-url$/;
+/** `agx login` options that ask the approver to create an organization. */
+const NEW_ORG_OPTIONS = ["--new-org", "--org-name", "--org-slug"];
+/** `agx org` subcommands that only read. Every other one asks (fail closed). */
+const ORG_READS = new Set(["list"]);
+/** An Ellaworks API key: `ela_` and 64 letters. 32 is enough to tell it from
+ * prose without matching a shortened example such as `ela_…`. */
+const ELA_KEY = /(?<![A-Za-z0-9_])ela_[A-Za-z]{32,}/;
+
+const API_KEY_REASON =
+	"elladex-agx: this puts an Ellaworks API key on a command line, where it lands in the transcript and the process list. Claude never handles API keys: to sign agx in, Claude runs `agx login`, which sends the user to the browser and stores the key without showing it. If this is a real key, treat it as exposed: revoke it in Settings → API keys. To store a key for CI, the user runs `agx config set apiKey --stdin` in their own terminal.";
+const API_KEY_STDIN_REASON =
+	"elladex-agx: `agx config set apiKey --stdin` stores an Ellaworks API key that someone would have to paste. Claude signs agx in with `agx login` instead, which needs no key from anyone. Approve only if you started this yourself and the key never passed through the chat.";
+const AGX_HOME_REASON =
+	"elladex-agx: Claude never sets AGX_HOME. That directory holds the agx secret key and the `agx login` key (credentials.json), so pointing agx somewhere Claude chose would put them where Claude could read them. Run agx without it: to sign in, `agx login`. If a login was already made under another directory, the user revokes it with `agx logout` in their own terminal.";
+const NEW_ORG_REASON =
+	"elladex-agx: this asks you to create a new Ellaworks organization on the sign-in page (`agx login --new-org`, `--org-name` or `--org-slug`, or `agx org create`). Approve only if you asked for a new organization; the organization itself is created only when you approve it in the browser.";
+
+/**
+ * The prompt for an agx server other than the default. Names each server's
+ * host as a URL parser reads it, next to the value as written, so a
+ * lookalike (`https://app.ellaworks.ai@evil.example`) shows its real host.
+ * @param {(string | null)[]} urls
+ */
+function apiBaseReason(urls) {
+	const shown = unique(urls.map(describeApiBase)).join(", ");
+	return `elladex-agx: this points agx at ${shown} instead of the default Ellaworks server, ${DEFAULT_API_ORIGIN}. agx would send its login key to that server, and \`agx login\` would show a sign-in link and code from it. Approve only if you named this server yourself.`;
+}
+
+/** @param {string | null} value null when the guard can't read it */
+function describeApiBase(value) {
+	if (value === null) {
+		return "a server the guard can't read";
+	}
+	if (value === "") {
+		return "an empty server address";
+	}
+	try {
+		const url = new URL(value);
+		return `${url.protocol}//${url.host} (written \`${value}\`)`;
+	} catch {
+		return `\`${value}\``;
+	}
+}
 
 /** Flags that make `serve` answer, trust or publish on its own. */
 const FORBIDDEN_SERVE_FLAGS = ["--allow-all", "--reply-any", "--advertise"];
@@ -841,10 +906,12 @@ export function findAgx(argv) {
 			agx.push(argv.slice(i + 1));
 		} else if (
 			isDynamic(w) &&
-			(/\bagx\b/.test(w) || isAgxVerb(argv[i + 1]))
+			(/\bagx\b/.test(w) ||
+				isAgxVerb(splitAgxArgs(argv.slice(i + 1)).positional[0]))
 		) {
-			// `$(which agx) send …`, `"$AGX" send …`: a command name computed at run
-			// time. Treat it as agx when it mentions agx or is followed by one of
+			// `$(which agx) send …`, `"$AGX" send …`, `"$AGX" -p work login …`: a
+			// command name computed at run time. Treat it as agx when it mentions
+			// agx or its first argument (after agx's global options) is one of
 			// agx's sensitive subcommands.
 			agx.push(argv.slice(i + 1));
 		}
@@ -864,6 +931,8 @@ function isAgxWord(w) {
 	);
 }
 
+/** agx subcommands that make a computed command name (`"$AGX" login`) count as
+ * agx: the ones the guard has an opinion about. */
 function isAgxVerb(w) {
 	return [
 		"send",
@@ -873,13 +942,30 @@ function isAgxVerb(w) {
 		"config",
 		"register",
 		"peers",
+		"login",
+		"org",
+		"listing",
+		"domain",
 	].includes(w ?? "");
 }
 
 // ------------------------------------------------------------- decisions
 
-/** agx's global options that take a separate value. */
-const AGX_VALUE_OPTIONS = new Set(["-p", "--profile"]);
+/**
+ * agx options that take a separate value: the global `--profile`, and the
+ * server and organization options, so that `agx --api-base-url <url> login`
+ * still reads `login` as the subcommand. (commander rejects most of these
+ * before the subcommand, but the guard shouldn't depend on that.)
+ */
+const AGX_VALUE_OPTIONS = new Set([
+	"-p",
+	"--profile",
+	"--api-base-url",
+	"--api-url",
+	"--org",
+	"--org-name",
+	"--org-slug",
+]);
 
 /**
  * The positional words of an agx argument list (options and the values of
@@ -914,19 +1000,123 @@ function hasOption(options, flag) {
 }
 
 /**
+ * The values given to options whose name matches `re`, as `--x v` or
+ * `--x=v`, up to `--` (after it, words are positional). A matching option
+ * with no value yields "".
+ *
+ * @param {string[]} args
+ * @param {RegExp} re
+ */
+function optionValues(args, re) {
+	/** @type {string[]} */
+	const values = [];
+	for (let i = 0; i < args.length; i += 1) {
+		const a = args[i];
+		if (a === "--") {
+			break;
+		}
+		const eq = a.indexOf("=");
+		if (a.startsWith("--") && eq > 0 && re.test(a.slice(0, eq))) {
+			values.push(a.slice(eq + 1));
+		} else if (re.test(a)) {
+			values.push(args[i + 1] ?? "");
+			i += 1;
+		}
+	}
+	return values;
+}
+
+/**
+ * True only for the default server written plainly: https, the default
+ * host (any case, default port), no userinfo, path `/` or none, no query or
+ * fragment. Anything computed at run time (`$URL`, `$(…)`), `http:`, a
+ * lookalike host, userinfo or a value that doesn't parse is not the default,
+ * and neither is a value the guard couldn't read (null).
+ *
+ * @param {string | null} value
+ */
+function isDefaultApiBase(value) {
+	if (
+		value === null ||
+		isDynamic(value) ||
+		/[\s?#`\\]/.test(value) ||
+		!/^https:\/\//i.test(value)
+	) {
+		return false;
+	}
+	let url;
+	try {
+		url = new URL(value);
+	} catch {
+		return false;
+	}
+	return (
+		url.origin === DEFAULT_API_ORIGIN &&
+		url.username === "" &&
+		url.password === "" &&
+		(url.pathname === "/" || url.pathname === "")
+	);
+}
+
+/**
  * @typedef {{ decision: "deny" | "ask", reason: string }} Verdict
  */
 
 /**
- * Decide one agx invocation.
+ * Decide one agx invocation. A server other than the default prompts
+ * whatever the subcommand: it is where agx sends its key, and where a login
+ * link would come from.
  *
  * @param {string[]} args the words after `agx`
  * @param {string} mode "draft" | "claude-sends"
  * @returns {Verdict | null}
  */
 export function decideAgx(args, mode) {
+	const nonDefault = optionValues(args, API_BASE_OPTION).filter(
+		(v) => !isDefaultApiBase(v),
+	);
+	return strongest([
+		nonDefault.length > 0 ? ask(apiBaseReason(nonDefault)) : null,
+		decideAgxSub(args, mode),
+	]);
+}
+
+/**
+ * Decide one agx invocation by its subcommand.
+ *
+ * @param {string[]} args the words after `agx`
+ * @param {string} mode "draft" | "claude-sends"
+ * @returns {Verdict | null}
+ */
+function decideAgxSub(args, mode) {
 	const { positional, options } = splitAgxArgs(args);
 	const [sub, sub2] = positional;
+
+	if (sub === "login") {
+		// Signing in against the default server needs no verdict: agx shows a
+		// link and a code, and a person approves in the browser. Creating an
+		// organization there is a bigger step, so it prompts first.
+		return NEW_ORG_OPTIONS.some((o) => hasOption(options, o))
+			? ask(NEW_ORG_REASON)
+			: null;
+	}
+
+	if (sub === "whoami" || sub === "logout") {
+		// whoami only reads; logout revokes this machine's own login key, which
+		// the user gets back with `agx login`. Neither needs a verdict.
+		return null;
+	}
+
+	if (sub === "org") {
+		if (sub2 === undefined || ORG_READS.has(sub2)) {
+			return null;
+		}
+		return sub2 === "create"
+			? ask(NEW_ORG_REASON)
+			: ask(
+					`elladex-agx: \`agx org ${sub2}\` isn't an agx command the guard knows to be read-only. Approve only if you asked for it.`,
+				);
+	}
 
 	if (sub === "identity") {
 		if (sub2 === "export") {
@@ -955,6 +1145,13 @@ export function decideAgx(args, mode) {
 			return deny(
 				"elladex-agx: `agx config show --reveal` prints the API key. Claude must never run it; use `agx config show` without --reveal.",
 			);
+		}
+		if (sub2 === "set" && isApiKeyName(positional[2])) {
+			// `config set apiKey <value>` (or `apiKey=<value>`) puts the key in
+			// argv; with no value, agx reads it from stdin (`--stdin`, or a pipe).
+			return positional[2].includes("=") || positional.length > 3
+				? deny(API_KEY_REASON)
+				: ask(API_KEY_STDIN_REASON);
 		}
 		if (sub2 === "set" || sub2 === "use") {
 			return ask(
@@ -1030,6 +1227,12 @@ export function decideAgx(args, mode) {
 	return null;
 }
 
+/** The `apiKey` config key in any case or spelling agx might accept
+ * (`apiKey`, `APIKEY`, `api-key`, `api_key`), alone or as `apiKey=<value>`. */
+function isApiKeyName(w) {
+	return /^api[-_]?key(?:=|$)/i.test(w ?? "");
+}
+
 /** @returns {Verdict} */
 function deny(reason) {
 	return { decision: "deny", reason };
@@ -1060,7 +1263,7 @@ function unique(list) {
 // ----------------------------------------------------------- key files
 
 const KEY_FILES_REASON =
-	"elladex-agx: this touches agx's private files (~/.agx or $AGX_HOME), which hold the secret key, the API key and the allowlist. Claude must never read, search, copy or edit them. Use `agx identity show` for the npub and /elladex-agx:allow for the allowlist.";
+	"elladex-agx: this touches agx's private files (~/.agx or $AGX_HOME), which hold the secret key, the allowlist, and credentials.json with the `agx login` API key. Claude must never read, search, copy or edit them. Use `agx whoami` to see who agx is signed in as, `agx identity show` for the npub and /elladex-agx:allow for the allowlist. If a key from these files ever reached the chat, the user revokes it (`agx logout`, or Settings → API keys) and signs in again with `agx login`.";
 
 const EXPORT_REASON =
 	"elladex-agx: `agx identity export` prints the secret key. Claude must never run it. If the user needs the key, they run it in their own terminal.";
@@ -1498,6 +1701,170 @@ function feedsInterpreter(argv) {
 	return argv.some((w) => isInterpreter(basename(w)));
 }
 
+// ------------------------------------------------- agx's environment
+
+/**
+ * The source of a pattern that matches setting environment variable `name`:
+ * `NAME=v` as a word or inside one (an assignment prefix, `env NAME=v`,
+ * `export`, `declare -x`, a quoted script), and PowerShell's `$env:NAME = v`
+ * or `${env:NAME} = v`. A reference such as `[ "$NAME" = x ]` is not a
+ * write. Case-insensitive, as Windows treats these names.
+ *
+ * @param {string} name
+ */
+function envSetSource(name) {
+	return `(?:\\$env:${name}|\\$\\{env:${name}\\}|(?<![A-Za-z0-9_$:{])${name})\\s*\\+?=(?!=)`;
+}
+
+/** PowerShell cmdlets (and aliases) that write an `env:` drive item. */
+const PS_ITEM_WRITERS =
+	/^(?:set-item|new-item|set-content|add-content|si|ni|ac)$/i;
+
+/**
+ * True when this simple command sets environment variable `name`.
+ * @param {string[]} live the command's words that aren't prose or patterns
+ * @param {string} name
+ */
+function setsEnv(live, name) {
+	if (new RegExp(envSetSource(name), "i").test(live.join(" "))) {
+		return true;
+	}
+	// PowerShell: `Set-Item -Path env:NAME -Value v`, `ni env:NAME v`.
+	const program = live.find((w) => !isAssignment(w)) ?? "";
+	return (
+		PS_ITEM_WRITERS.test(basename(program)) &&
+		live.some((w) => new RegExp(`^(?:-path[:=])?env:${name}$`, "i").test(w))
+	);
+}
+
+/**
+ * The values this simple command gives environment variable `name`. A word
+ * that starts with `NAME=` gives the rest of the word; another spelling
+ * (`$env:NAME = v`, `NAME=v` inside a quoted script) gives the next run of
+ * plain characters; a PowerShell item write gives null (not read).
+ *
+ * @param {string[]} live
+ * @param {string} name
+ * @returns {(string | null)[]}
+ */
+function envValues(live, name) {
+	/** @type {(string | null)[]} */
+	const values = [];
+	const whole = new RegExp(`^${name}\\+?=`, "i");
+	/** @type {string[]} */
+	const rest = [];
+	for (const w of live) {
+		const m = whole.exec(w);
+		if (m) {
+			values.push(w.slice(m[0].length));
+		} else {
+			rest.push(w);
+		}
+	}
+	const inline = new RegExp(`${envSetSource(name)}\\s*([^\\s;&|'"]*)`, "gi");
+	for (const m of rest.join(" ").matchAll(inline)) {
+		values.push(m[1]);
+	}
+	if (values.length === 0 && setsEnv(live, name)) {
+		values.push(null);
+	}
+	return values;
+}
+
+/**
+ * Verdicts on the agx environment a simple command sets up, and on an API
+ * key written into it. `findAgx` skips assignments, so they are checked here,
+ * for every command and not just agx: `export AGX_API_URL=…` changes the agx
+ * calls that follow it.
+ *
+ * @param {string[]} live the command's words that aren't prose or patterns
+ * @returns {Verdict[]}
+ */
+function envVerdicts(live) {
+	/** @type {Verdict[]} */
+	const out = [];
+	if (setsEnv(live, "AGX_API_KEY") || live.some((w) => ELA_KEY.test(w))) {
+		out.push(deny(API_KEY_REASON));
+	}
+	if (setsEnv(live, "AGX_HOME")) {
+		out.push(deny(AGX_HOME_REASON));
+	}
+	const urls = envValues(live, "AGX_API_URL").filter(
+		(v) => !isDefaultApiBase(v),
+	);
+	if (urls.length > 0) {
+		out.push(ask(apiBaseReason(urls)));
+	}
+	return out;
+}
+
+/**
+ * PowerShell's `[Environment]::SetEnvironmentVariable('NAME', …)`, which the
+ * tokenizer splits at its parentheses, checked on the command text instead.
+ *
+ * @param {string} text
+ * @returns {Verdict[]}
+ */
+function setEnvironmentVariableVerdicts(text) {
+	/** @type {Verdict[]} */
+	const out = [];
+	const call = (name) =>
+		new RegExp(
+			`SetEnvironmentVariable\\s*\\(\\s*['"]?${name}['"]?\\s*,`,
+			"i",
+		).test(text);
+	if (call("AGX_API_KEY")) {
+		out.push(deny(API_KEY_REASON));
+	}
+	if (call("AGX_HOME")) {
+		out.push(deny(AGX_HOME_REASON));
+	}
+	if (call("AGX_API_URL")) {
+		out.push(ask(apiBaseReason([null])));
+	}
+	return out;
+}
+
+// ------------------------------------------ the sign-in approval page
+
+const DEVICE_PAGE_REASON =
+	"elladex-agx: this opens the Ellaworks sign-in approval page (/auth/device) with a tool Claude drives. Only a person approves an `agx login`: give the user the link and code that your own `agx login` printed, and let them open it in their own browser. Claude never opens, fills in or clicks that page.";
+
+/** MCP tool inputs that hold a URL to open (browser navigation tools). */
+const URL_KEYS = new Set(["url", "uri", "href"]);
+
+/**
+ * True for the device sign-in page, `/auth/device` (with an optional locale
+ * prefix and any query, such as `?code=…`), and the device endpoints under
+ * `/api/auth/device/`, on any host. A value with no scheme
+ * (`app.ellaworks.ai/auth/device`) is read as https.
+ *
+ * @param {string} value
+ */
+function isDeviceApprovalUrl(value) {
+	const v = value.trim();
+	let path;
+	try {
+		path = new URL(/^[a-z][a-z0-9+.-]*:/i.test(v) ? v : `https://${v}`)
+			.pathname;
+	} catch {
+		path = v.split(/[?#]/)[0] ?? "";
+	}
+	let decoded = path;
+	try {
+		decoded = decodeURIComponent(path);
+	} catch {
+		// Keep the raw path: a malformed escape is checked as written.
+	}
+	return [path, decoded].some((p) => {
+		const clean = p.replace(/\/+$/, "").toLowerCase();
+		return (
+			/^(?:\/[a-z]{2}(?:-[a-z0-9]{2,4})?)?\/auth\/device$/.test(clean) ||
+			/^\/api\/auth\/device(?:\/|$)/.test(clean)
+		);
+	});
+}
+
 // ---------------------------------------------------------------- decide
 
 /** `agx … send|request` in text the parser could not split into commands. */
@@ -1586,6 +1953,7 @@ export function decideCommand(command, mode, ctx = {}) {
 		const { commands, nested, redirects, heredocs } = tokenize(text);
 		queue.push(...nested);
 		const mentionsMode = mentionsModeText(text);
+		verdicts.push(...setEnvironmentVariableVerdicts(text));
 
 		for (const target of redirects) {
 			if (touchesKeyFiles(target, ctx)) {
@@ -1608,6 +1976,9 @@ export function decideCommand(command, mode, ctx = {}) {
 				if (touchesKeyFiles(body, ctx)) {
 					verdicts.push(deny(KEY_FILES_REASON));
 				}
+				if (ELA_KEY.test(body)) {
+					verdicts.push(deny(API_KEY_REASON));
+				}
 				verdicts.push(...scanText(body, mode));
 			}
 		}
@@ -1624,6 +1995,10 @@ export function decideCommand(command, mode, ctx = {}) {
 			) {
 				verdicts.push(deny(MODE_REASON));
 			}
+			// AGX_API_KEY / AGX_HOME / AGX_API_URL and key literals, in every
+			// word that isn't prose or a pattern: an echo argument counts, a grep
+			// pattern or a commit message doesn't.
+			verdicts.push(...envVerdicts(live));
 
 			const found = findAgx(argv);
 			queue.push(...found.nested);
@@ -1757,15 +2132,16 @@ export function decide(input, env) {
 								`${KEY_FILES_REASON} This search starts at ${root}, which contains the agx directory; search a narrower path.`,
 							)
 						: ask(
-								`elladex-agx: this search has no path, so it starts at the working directory ${root}, which contains agx's private files (~/.agx: the secret key, the API key and the allowlist). Approve only if its results can't include them; otherwise ask Claude to search a narrower path.`,
+								`elladex-agx: this search has no path, so it starts at the working directory ${root}, which contains agx's private files (~/.agx: the secret key, the allowlist and the login key in credentials.json). Approve only if its results can't include them; otherwise ask Claude to search a narrower path.`,
 							);
 				}
 			}
 			return null;
 		}
 		default: {
-			// PowerShell under another name, and MCP tools such as a terminal
-			// that runs a command in the user's own shell.
+			// PowerShell under another name, MCP tools such as a terminal that
+			// runs a command in the user's own shell, and browser tools that
+			// open a URL.
 			/** @type {(Verdict | null)[]} */
 			const verdicts = [];
 			for (const [key, value] of Object.entries(toolInput)) {
@@ -1776,6 +2152,8 @@ export function decide(input, env) {
 					verdicts.push(decideCommand(value, mode, ctx));
 				} else if (PATH_KEYS.has(key) && inAgxDir(value)) {
 					verdicts.push(deny(KEY_FILES_REASON));
+				} else if (URL_KEYS.has(key) && isDeviceApprovalUrl(value)) {
+					verdicts.push(deny(DEVICE_PAGE_REASON));
 				}
 			}
 			return strongest(verdicts);
