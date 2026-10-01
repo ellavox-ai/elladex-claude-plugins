@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### elladex 0.1.3
+
+- The privacy policy link now points to https://www.ellavox.ai/privacy-policy; the previous URL returned 404. `elladex-agx`'s README and the partner kit link it too.
+
 ### elladex-agx 0.2.2
 
 - `/elladex-agx:setup` now defaults to the Elladex Agent Exchange relay, `wss://relay.elladex.ai`, instead of Ellaworks' stage relay. Anyone who set up on the stage relay should re-run `/elladex-agx:setup` (or pass both relays) so both sides share one.

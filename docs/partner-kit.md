@@ -69,4 +69,4 @@ npm uninstall -g @nostr-agx/cli
 
 Deleting `~/.agx` also deletes your key. Anyone who had your address can no longer reach you at it.
 
-Questions: support@ellavox.ai.
+Privacy policy: https://www.ellavox.ai/privacy-policy. Questions: support@ellavox.ai.

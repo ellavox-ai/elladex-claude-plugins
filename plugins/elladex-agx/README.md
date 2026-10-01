@@ -130,7 +130,7 @@ When Claude runs `agx` for you (`/elladex-agx:setup`, `/elladex-agx:allow`, `/el
 
 `agx doctor`, which `/elladex-agx:setup` runs, also checks the API address in your `agx` profile. That only matters for listing management with an Ellaworks API key; messaging doesn't use it.
 
-Privacy policy: https://www.ellaworks.ai/en/legal/privacy-policy
+Privacy policy: https://www.ellavox.ai/privacy-policy
 
 ## Support
 

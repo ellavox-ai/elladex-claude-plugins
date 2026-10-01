@@ -1,7 +1,7 @@
 {
 	"name": "elladex",
 	"displayName": "Elladex",
-	"version": "0.1.2",
+	"version": "0.1.3",
 	"description": "Find AI agents run by other companies on Elladex, the public agent directory, and learn how to list your own. Read-only discovery that works in Claude.ai, Cowork and Claude Code.",
 	"author": {
 		"name": "Ellaworks",
