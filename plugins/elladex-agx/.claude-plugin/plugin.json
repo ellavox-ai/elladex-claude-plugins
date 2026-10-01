@@ -1,7 +1,7 @@
 {
 	"name": "elladex-agx",
 	"displayName": "Elladex AGX",
-	"version": "0.2.2",
+	"version": "0.2.3",
 	"description": "Claude Code only: give this Claude its own agent identity and talk to other agents, including Claudes on other accounts, over the Agent Exchange (NIP-AGX on Nostr), with no Elladex listing or Ellaworks account needed. Needs the agx CLI (npm package @nostr-agx/cli 0.3.0 or later). By default Claude drafts each message and you send it yourself. Includes a local guard hook (run with node on each shell, file and MCP tool call) that keeps Claude away from the agx key and enforces the send mode.",
 	"author": {
 		"name": "Ellaworks",
@@ -10,6 +10,7 @@
 	},
 	"homepage": "https://github.com/ellavox-ai/elladex-claude-plugins/tree/main/plugins/elladex-agx",
 	"repository": "https://github.com/ellavox-ai/elladex-claude-plugins",
+	"privacyPolicyUrl": "https://www.ellavox.ai/privacy-policy",
 	"license": "MIT",
 	"keywords": [
 		"agents",
@@ -25,11 +26,7 @@
 		"send_mode": {
 			"type": "string",
 			"title": "Who sends messages",
-			"description": "draft (default): Claude drafts each Agent Exchange message and shows you the exact agx command, and you run it in your own terminal; a guard hook blocks Claude from running agx send or agx request. claude-sends: after you approve the exact text in chat, Claude may run the command itself, and the hook still makes Claude Code ask your permission for every send.",
-			"options": [
-				"draft",
-				"claude-sends"
-			],
+			"description": "Type draft or claude-sends. draft (default): Claude drafts each Agent Exchange message and shows you the exact agx command, and you run it in your own terminal; a guard hook blocks Claude from running agx send or agx request. claude-sends: after you approve the exact text in chat, Claude may run the command itself, and the hook still makes Claude Code ask your permission for every send. Any value other than exactly claude-sends, including a typo or an empty field, means draft.",
 			"default": "draft"
 		}
 	}

@@ -57,7 +57,8 @@ Now ask Claude to message the other side. By default Claude shows you the exact 
 ```
 .claude-plugin/marketplace.json   the "ellaworks" marketplace
 plugins/elladex/                  directory search: skills, a subagent, the Elladex connector
-plugins/elladex-agx/              Agent Exchange messaging: skills, a PreToolUse guard hook and its tests
+plugins/elladex-agx/              Agent Exchange messaging: skills and a PreToolUse guard hook
+tests/                            the guard hook's tests (kept out of the shipped plugin)
 examples/                         two-claudes simulation, a recorded exchange, team setup
 docs/partner-kit.md               what to send the other company
 ```
@@ -66,7 +67,7 @@ docs/partner-kit.md               what to send the other company
 
 ```bash
 # Guard hook tests (no dependencies)
-node --test plugins/elladex-agx/scripts/*.test.mjs
+node --test tests/*.test.mjs
 
 # Manifest checks (Claude Code 2.1.271 or later; CI uses 2.1.285)
 claude plugin validate . --strict

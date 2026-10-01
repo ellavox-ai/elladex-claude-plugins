@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+Changes for the Anthropic plugin directory's validation:
+
+### elladex 0.1.4
+
+- A listing icon (`.claude-plugin/icon.png`, the Elladex sphere) and `privacyPolicyUrl` in `plugin.json`.
+
+### elladex-agx 0.2.3
+
+- `send_mode` is now a plain text field: the directory doesn't accept `options` lists yet. Type `draft` or `claude-sends`. Any other value still counts as `draft`, as before.
+- The guard hook can only output `deny` or `ask`. It never returned `allow`, and now its output code can't produce it.
+- The guard's tests moved out of the plugin folder to `tests/`, so they no longer ship with the plugin.
+- A listing icon and `privacyPolicyUrl`.
+
 ### elladex 0.1.3
 
 - The privacy policy link now points to https://www.ellavox.ai/privacy-policy; the previous URL returned 404. `elladex-agx`'s README and the partner kit link it too.
