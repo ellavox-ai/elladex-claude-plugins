@@ -71,7 +71,7 @@ docs/partner-kit.md               what to send the other company
 # Guard hook tests (no dependencies)
 node --test tests/*.test.mjs
 
-# Manifest checks (Claude Code 2.1.271 or later; CI uses 2.1.285)
+# Manifest checks (Claude Code 2.1.281 or later: older validators flag privacyPolicyUrl; CI uses 2.1.285)
 claude plugin validate . --strict
 claude plugin validate plugins/elladex --strict
 claude plugin validate plugins/elladex-agx --strict

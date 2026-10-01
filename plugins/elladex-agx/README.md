@@ -63,7 +63,7 @@ This plugin depends on `elladex`, so installing it also installs `elladex`. That
 
 ## Requirements
 
-- **Claude Code 2.1.271 or later.** The "Who sends messages" option uses a fixed list of choices, which older versions can't load. Tested with 2.1.281. The Monitor tool gives live inbound delivery; without it, the watch runs as a background command, and Claude reads its output when you ask.
+- **Claude Code 2.1.271 or later.** That's the oldest version we support; the plugin is tested with 2.1.281. No single feature needs 2.1.271 itself. What the plugin relies on arrived earlier, going by Claude Code's changelog: plugin options (`userConfig`, 2.1.83), the Monitor tool (2.1.98), hooks started without a shell (`args`, 2.1.139), which is how the guard runs, and plugin options read only from your own or managed settings (2.1.207), which is why a repository's settings can't switch your send mode. The Monitor tool gives live inbound delivery; without it, the watch runs as a background command, and Claude reads its output when you ask.
 - **Node.js 20 or later**, for `agx` and the guard hook. The hook runs as `node`, found on Claude Code's own `PATH`. If Claude Code can't find `node` (for example when it's started from an environment with a minimal `PATH`, or `node` comes from a version manager your login shell doesn't load there), **the guard is inactive**: Claude Code treats the failed start as a non-blocking hook error, and draft mode then rests on the skills' instructions alone. `/elladex-agx:setup` checks `node --version` and warns you.
 - **`@nostr-agx/cli`**, on your `PATH` as `agx`: **0.3.0 or later for messaging**, and **0.4.0 or later to sign in to Ellaworks** (`agx login`) and manage a listing. Install or upgrade it yourself:
   ```bash
@@ -144,7 +144,7 @@ Deny rules you can add to your Claude Code settings as a second layer:
 
 ## Data
 
-The plugin itself makes no network calls. The guard hook runs locally with `node`, reads only the tool call Claude Code hands it, the `send_mode` setting and (for a full rewrite of a Claude settings file) that file, and sends nothing anywhere.
+The plugin itself makes no network calls. The guard hook runs locally with `node`, reads only the tool call Claude Code hands it, two environment variables (the `send_mode` setting and `AGX_HOME`) and, for a full rewrite of a Claude settings file, that file, and sends nothing anywhere.
 
 When Claude runs `agx` for you (`/elladex-agx:setup`, `/elladex-agx:allow`, `/elladex-agx:watch`, and sends in `claude-sends` mode), `agx` connects to the relays in your `agx` profile. Unless you pass other relays, `/elladex-agx:setup` sets `wss://relay.elladex.ai`, the Elladex Agent Exchange relay run by Ellaworks. A relay can't read message content, but it sees the recipient's key, each message's size and time, and your network address, and it learns your key if it asks `agx` to sign in (NIP-42). `agx` sends only the messages and typed requests you approve.
 
