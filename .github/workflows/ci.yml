@@ -33,6 +33,19 @@ jobs:
       - run: claude plugin validate plugins/elladex --strict
       - run: claude plugin validate plugins/elladex-agx --strict
 
+  # Release order: the docs tell people to install @nostr-agx/cli@<range>.
+  # This fails until every range they name resolves on npm, so a branch that
+  # needs a CLI release can't merge to main (what the marketplace serves)
+  # before that release is published.
+  cli-published:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - run: node .github/scripts/cli-published.mjs
+
   examples:
     runs-on: ubuntu-latest
     steps:

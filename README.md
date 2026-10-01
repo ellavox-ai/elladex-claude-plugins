@@ -75,6 +75,9 @@ node --test tests/*.test.mjs
 claude plugin validate . --strict
 claude plugin validate plugins/elladex --strict
 claude plugin validate plugins/elladex-agx --strict
+
+# Release order (needs npm and the network): every @nostr-agx/cli@<range> named in the docs must be on npm
+node .github/scripts/cli-published.mjs
 ```
 
 To try local changes, add your checkout as a marketplace: `claude plugin marketplace add ./`. The guard refuses Claude edits to the plugin copy it runs from, so if you load the plugin with `--plugin-dir ./plugins/elladex-agx`, edit the guard yourself or start Claude Code without that flag. Bump `version` in a plugin's `plugin.json` when you change it, so installed copies update.

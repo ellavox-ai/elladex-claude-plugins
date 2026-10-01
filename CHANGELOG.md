@@ -2,7 +2,7 @@
 
 ## Unreleased: agx login (marketplace 0.3.0)
 
-Signing `agx` in to Ellaworks without an API key. Not on `main` yet: it ships after `@nostr-agx/cli` 0.4.0 is on npm.
+Signing `agx` in to Ellaworks without an API key. Not on `main` yet: it ships after `@nostr-agx/cli` 0.4.0 is on npm. CI enforces that: the `cli-published` check fails until every `@nostr-agx/cli@<range>` these files tell you to install resolves on npm.
 
 ### elladex-agx 0.3.0
 
