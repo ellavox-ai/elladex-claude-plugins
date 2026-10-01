@@ -7,8 +7,9 @@
  * (hooks/hooks.json): an MCP tool's `command`, `cmd` or `script` input is
  * checked like Bash (the Desktop terminal tool runs commands in the user's own
  * shell), its path inputs like Read, and its `url` input (a browser tool's)
- * against the sign-in approval page. It reads the hook input as JSON on
- * stdin, and from the environment only the plugin's `send_mode` option
+ * against the sign-in approval page, at any depth (a `browser_batch` action's
+ * `input.url` too). It reads the hook input as JSON on stdin, and from the
+ * environment only the plugin's `send_mode` option
  * (CLAUDE_PLUGIN_OPTION_SEND_MODE) and AGX_HOME (see `guardEnv`). It prints a
  * `hookSpecificOutput` decision of deny or ask, or nothing at all when it has
  * no opinion; it never approves a tool call:
@@ -21,7 +22,8 @@
  *          set apiKey <value>`, AGX_API_KEY set, or an `ela_…` key literal);
  *          printing an inherited AGX_API_KEY (`printenv AGX_API_KEY`, `echo
  *          $AGX_API_KEY`, `env | grep -i agx`); an MCP tool (a browser)
- *          opening the sign-in approval page `/auth/device`; `agx serve` without the watch's
+ *          opening the sign-in approval page `/auth/device`, directly or
+ *          through a sign-in page's redirect; `agx serve` without the watch's
  *          safe flags or with --allow-all, --reply-any or --advertise; any
  *          attempt to change the send mode (`send_mode=` in a command, or a
  *          Claude settings file written with send_mode, claude-sends or
@@ -71,8 +73,8 @@
  * whole home directory (`grep -r … ~`), an agx server stored in the profile or
  * inherited from the shell's AGX_API_URL, the whole environment printed with
  * no filter (`env`) or a program that reads AGX_API_KEY from its own
- * environment, or a browser tool that reaches the approval page by clicking
- * or by script rather than by a `url` input. It stops
+ * environment, or a browser tool that reaches the approval page by clicking,
+ * by script or by typing the address rather than by a `url` input. It stops
  * the step that moves agx's files (AGX_HOME, HOME), not a later read of
  * wherever they went. The tests list these gaps.
  *
@@ -2103,33 +2105,65 @@ const URL_KEYS = new Set(["url", "uri", "href"]);
 /**
  * True for the device sign-in page, `/auth/device` (with an optional locale
  * prefix and any query, such as `?code=…`), and the device endpoints under
- * `/api/auth/device/`, on any host. A value with no scheme
- * (`app.ellaworks.ai/auth/device`) is read as https.
+ * `/api/auth/device/`, on any host, and for any page whose query carries one
+ * of those as a value: a sign-in page sends a signed-in browser straight on
+ * to its `redirectTo`. Repeated slashes count as one, since the server
+ * redirects `//auth/device` to the page. A value with no scheme
+ * (`app.ellaworks.ai/auth/device`) is read as https; one that starts with
+ * `/` is a path.
  *
  * @param {string} value
+ * @param {number} [depth] how many query values deep this is
  */
-function isDeviceApprovalUrl(value) {
+function isDeviceApprovalUrl(value, depth = 0) {
 	const v = value.trim();
-	let path;
+	/** @type {URL | null} */
+	let url = null;
 	try {
-		path = new URL(/^[a-z][a-z0-9+.-]*:/i.test(v) ? v : `https://${v}`)
-			.pathname;
+		url = /^[a-z][a-z0-9+.-]*:/i.test(v)
+			? new URL(v)
+			: v.startsWith("/")
+				? new URL(v, "https://relative.invalid")
+				: new URL(`https://${v}`);
 	} catch {
-		path = v.split(/[?#]/)[0] ?? "";
+		// Not a URL: check the text before any query as a path.
 	}
+	const raw = v.split(/[?#]/)[0] ?? "";
+	const path = url ? url.pathname : raw;
 	let decoded = path;
 	try {
 		decoded = decodeURIComponent(path);
 	} catch {
 		// Keep the raw path: a malformed escape is checked as written.
 	}
-	return [path, decoded].some((p) => {
-		const clean = p.replace(/\/+$/, "").toLowerCase();
-		return (
-			/^(?:\/[a-z]{2}(?:-[a-z0-9]{2,4})?)?\/auth\/device$/.test(clean) ||
-			/^\/api\/auth\/device(?:\/|$)/.test(clean)
-		);
-	});
+	// A value starting with `//` parses as a host; check its text as a path
+	// too, failing closed.
+	const paths = v.startsWith("/") ? [path, decoded, raw] : [path, decoded];
+	if (paths.some(isDevicePath)) {
+		return true;
+	}
+	if (!url || depth >= 3) {
+		return false;
+	}
+	for (const [, inner] of url.searchParams) {
+		if (inner && isDeviceApprovalUrl(inner, depth + 1)) {
+			return true;
+		}
+	}
+	return false;
+}
+
+/** @param {string} path */
+function isDevicePath(path) {
+	const clean = path
+		.replace(/\\/g, "/")
+		.replace(/\/{2,}/g, "/")
+		.replace(/\/+$/, "")
+		.toLowerCase();
+	return (
+		/^(?:\/[a-z]{2}(?:-[a-z0-9]{2,4})?)?\/auth\/device$/.test(clean) ||
+		/^\/api\/auth\/device(?:\/|$)/.test(clean)
+	);
 }
 
 // ---------------------------------------------------------------- decide
@@ -2363,6 +2397,39 @@ const PATH_KEYS = new Set([
 	"cwd",
 ]);
 
+/**
+ * Every string in a tool input, at any depth, with the name of the object key
+ * it sits under (an array passes its key on to its items): `{actions: [{input:
+ * {url: "…"}}]}` yields `["url", "…"]`. Bounded, so a huge input can't stall
+ * the hook.
+ *
+ * @param {unknown} value
+ * @returns {[string, string][]}
+ */
+function stringInputs(value) {
+	/** @type {[string, string][]} */
+	const out = [];
+	/** @type {[unknown, string, number][]} */
+	const stack = [[value, "", 0]];
+	for (let n = 0; stack.length > 0 && n < 10000; n += 1) {
+		const [v, key, depth] = /** @type {[unknown, string, number]} */ (
+			stack.pop()
+		);
+		if (typeof v === "string") {
+			out.push([key, v]);
+		} else if (depth < 10 && Array.isArray(v)) {
+			for (const item of v) {
+				stack.push([item, key, depth + 1]);
+			}
+		} else if (depth < 10 && v && typeof v === "object") {
+			for (const [k, item] of Object.entries(v)) {
+				stack.push([item, k, depth + 1]);
+			}
+		}
+	}
+	return out;
+}
+
 /** The text a Write, Edit or MultiEdit call puts into a file. */
 function writtenText(toolInput) {
 	const parts = [toolInput.content, toolInput.new_string];
@@ -2469,13 +2536,11 @@ export function decide(input, env) {
 		default: {
 			// PowerShell under another name, MCP tools such as a terminal that
 			// runs a command in the user's own shell, and browser tools that
-			// open a URL.
+			// open a URL, including inside a batch of actions
+			// (`browser_batch`'s `actions[].input.url`).
 			/** @type {(Verdict | null)[]} */
 			const verdicts = [];
-			for (const [key, value] of Object.entries(toolInput)) {
-				if (typeof value !== "string") {
-					continue;
-				}
+			for (const [key, value] of stringInputs(toolInput)) {
 				if (COMMAND_KEYS.has(key)) {
 					verdicts.push(decideCommand(value, mode, ctx));
 				} else if (PATH_KEYS.has(key) && inAgxDir(value)) {

@@ -1973,17 +1973,87 @@ describe("the sign-in approval page is the user's", () => {
 		);
 	});
 
+	it("denies repeated slashes, which the server redirects to the page", () => {
+		for (const url of [
+			"https://app.ellaworks.ai//auth/device?code=WDJB-MJHT",
+			"https://app.ellaworks.ai/auth//device",
+			"https://app.ellaworks.ai///auth///device/",
+			"https://app.ellaworks.ai/auth\\device",
+			"https://app.ellaworks.ai/en//auth/device",
+		]) {
+			assert.equal(tool("mcp__Claude_Browser__navigate", { url }), "deny", url);
+		}
+	});
+
+	it("denies a page that redirects a signed-in browser to it", () => {
+		for (const url of [
+			"https://app.ellaworks.ai/auth/login?redirectTo=%2Fauth%2Fdevice%3Fcode%3DWDJB-MJHT",
+			"https://app.ellaworks.ai/auth/login?next=/auth/device",
+			"https://app.ellaworks.ai/auth/login?redirectTo=https%3A%2F%2Fapp.ellaworks.ai%2Fauth%2Fdevice",
+			"https://app.ellaworks.ai/auth/signup?callbackURL=%2Fen%2Fauth%2Fdevice",
+			"https://app.ellaworks.ai/auth/login?redirectTo=%2F%2Fauth%2Fdevice",
+			// A redirect inside a redirect.
+			"https://app.ellaworks.ai/auth/login?redirectTo=%2Fauth%2Flogin%3FredirectTo%3D%252Fauth%252Fdevice",
+		]) {
+			assert.equal(tool("mcp__Claude_Browser__navigate", { url }), "deny", url);
+		}
+	});
+
+	it("denies the page inside a batch of browser actions", () => {
+		for (const name of [
+			"mcp__Claude_Browser__browser_batch",
+			"mcp__claude-in-chrome__browser_batch",
+		]) {
+			assert.equal(
+				tool(name, {
+					actions: [
+						{ name: "computer", input: { action: "screenshot" } },
+						{
+							name: "navigate",
+							input: {
+								url: "https://app.ellaworks.ai/auth/device?code=WDJB-MJHT",
+							},
+						},
+					],
+				}),
+				"deny",
+				name,
+			);
+		}
+		// Nested commands and paths are checked too.
+		assert.equal(
+			tool("mcp__x__run", { steps: [{ command: "AGX_HOME=/tmp/x agx login" }] }),
+			"deny",
+		);
+		assert.equal(
+			tool("mcp__x__read", {
+				files: [{ path: `${homedir()}/.agx/credentials.json` }],
+			}),
+			"deny",
+		);
+	});
+
 	it("leaves other pages alone", () => {
 		for (const url of [
 			"https://app.ellaworks.ai/elladex",
 			"https://app.ellaworks.ai/elladex/listings/l_7?org=acme",
 			"https://app.ellaworks.ai/auth/device-help",
-			"https://app.ellaworks.ai/auth/login?next=/auth/device",
+			"https://app.ellaworks.ai/auth/login?redirectTo=%2Felladex",
 			"https://github.com/ellavox-ai/elacity-mega/tree/main/apps/web/app/auth/device",
 			"https://datatracker.ietf.org/doc/html/rfc8628",
+			"https://www.google.com/search?q=rfc+8628+device+flow",
 		]) {
 			assert.equal(tool("mcp__Claude_Browser__navigate", { url }), "none", url);
 		}
+		assert.equal(
+			tool("mcp__Claude_Browser__browser_batch", {
+				actions: [
+					{ name: "navigate", input: { url: "https://example.com" } },
+					{ name: "computer", input: { action: "screenshot" } },
+				],
+			}),
+			"none",
+		);
 	});
 });
 
@@ -2071,6 +2141,16 @@ describe("known gaps in the login rules (documented, not caught)", () => {
 		assert.equal(
 			tool("mcp__claude-in-chrome__javascript_tool", {
 				text: "location.href = 'https://app.ellaworks.ai/auth/device'",
+			}),
+			"none",
+		);
+	});
+
+	it("a URL typed into the browser's address bar", () => {
+		assert.equal(
+			tool("mcp__Claude_Browser__computer", {
+				action: "type",
+				text: "https://app.ellaworks.ai/auth/device\n",
 			}),
 			"none",
 		);
