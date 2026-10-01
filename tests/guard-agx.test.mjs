@@ -1798,6 +1798,8 @@ describe("a shell startup file is a command line", () => {
 });
 
 describe("agx run after loading variables the guard can't read asks", () => {
+	// Ask, not deny, by design: what is loaded is usually a project's own
+	// .env, and the user can look at it before approving.
 	it("asks", () => {
 		for (const command of [
 			"cat > /tmp/e <<EOF\nAGX_HOME=/tmp/x\nEOF\nenv $(cat /tmp/e) agx login --json --no-wait",
@@ -1810,6 +1812,7 @@ describe("agx run after loading variables the guard can't read asks", () => {
 			"bash -c 'source /tmp/e && agx whoami'",
 		]) {
 			assert.equal(bash(command), "ask", command);
+			assert.equal(bash(command, "claude-sends"), "ask", command);
 		}
 		assert.match(
 			verdictOf("source /tmp/e; agx login").reason,
@@ -1939,6 +1942,25 @@ describe("mentions of login commands in data need no verdict", () => {
 			assert.equal(bash(command), "none", command);
 		});
 	}
+
+	// By design: a key-shaped literal is refused where a program would use it
+	// (an echo or curl argument, a script fed to an interpreter), not in text
+	// the guard reads as data. Keys reach Claude only if someone pastes one.
+	it("a real ela_ key literal in a commit message, PR body, pattern or written heredoc", () => {
+		for (const command of [
+			`git commit -m "chore: revoke ${KEY}"`,
+			`git commit -m "$(cat <<'EOF'\nrevoke ${KEY}\nEOF\n)"`,
+			`gh pr create --title "rotate" --body "revoked ${KEY}"`,
+			`cat > notes.md <<'EOF'\nold key ${KEY}\nEOF`,
+			`rg -n "${KEY}" logs`,
+			`grep -rn ${KEY} logs`,
+		]) {
+			assert.equal(bash(command), "none", command.slice(0, 40));
+		}
+		// The same literal where it would be used is still refused.
+		assert.equal(bash(`bash <<'EOF'\necho ${KEY}\nEOF`), "deny");
+		assert.equal(bash(`echo ${KEY} > notes.md`), "deny");
+	});
 });
 
 describe("the sign-in approval page is the user's", () => {
@@ -2328,7 +2350,18 @@ describe("known gaps in the login rules (documented, not caught)", () => {
 	});
 
 	it("the whole environment printed with no filter", () => {
-		assert.equal(bash("env"), "none");
+		// Deliberate: `env` and `printenv` are everyday commands, and refusing
+		// every dump would block ordinary debugging. Filtered for the key, they
+		// are denied (see "an inherited AGX_API_KEY is never printed").
+		for (const command of [
+			"env",
+			"printenv",
+			"env | sort",
+			"export -p",
+			"env > /tmp/env.txt",
+		]) {
+			assert.equal(bash(command), "none", command);
+		}
 		assert.equal(tool("PowerShell", { command: "$env:AGX_API_KEY" }), "none");
 		assert.equal(
 			bash("python3 -c 'import os; print(os.environ[\"AGX_API_KEY\"])'"),
