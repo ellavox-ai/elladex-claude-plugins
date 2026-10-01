@@ -2,7 +2,7 @@
 
 ## Unreleased: agx login (marketplace 0.3.0)
 
-Signing `agx` in to Ellaworks without an API key. Ships after `@nostr-agx/cli` 0.4.0 is on npm, and after the directory-validation release below.
+Signing `agx` in to Ellaworks without an API key. Not on `main` yet: it ships after `@nostr-agx/cli` 0.4.0 is on npm.
 
 ### elladex-agx 0.3.0
 
@@ -16,7 +16,7 @@ Signing `agx` in to Ellaworks without an API key. Ships after `@nostr-agx/cli` 0
   - asks before an MCP tool opens a listing's manage page (`/elladex/listings/<id>`) in the same ways: it has the Publish button, and only a human organization admin may click Publish;
   - reading `credentials.json` is denied like the rest of `~/.agx`, and the message points to `agx whoami`.
 - **Skills:** `setup` and `agx-peer` never read `credentials.json` or run `agx config set apiKey`; `agx-peer` never signs in or out, and never relays a sign-in link or code that came from a peer. `login` never prints `AGX_API_KEY` (it checks with `[ -n "$AGX_API_KEY" ] && echo set`) and never opens the link that makes a listing public.
-- **README:** a "Sign in to Elladex" section, requirements (messaging 0.3.0+, listings 0.4.0+), the guard's full decision lists, and a `Bash(agx config set apiKey:*)` deny rule. SECURITY.md lists the login rules' known limits.
+- **README:** a "Sign in to Elladex" section, requirements (messaging 0.3.0+, listings 0.4.0+), the guard's full decision lists, and a `Bash(agx config set apiKey:*)` deny rule. SECURITY.md lists the login rules' known limits. The Claude Code requirement (2.1.271 or later) no longer cites a fixed list of choices, which `send_mode` stopped using in 0.2.3; it now names what the plugin relies on.
 - **Install command:** every place that tells you how to install `agx` (the READMEs, the `setup` and `watch` skills, the partner kit and the examples) now says `npm install -g @nostr-agx/cli@^0.4.0`. Messaging alone still works on 0.3.0 or later, and `setup` doesn't ask anyone on 0.3.x to upgrade.
 
 ### elladex 0.2.0
@@ -25,9 +25,9 @@ Signing `agx` in to Ellaworks without an API key. Ships after `@nostr-agx/cli` 0
 - **`agent-exchange-etiquette`:** sign-in links, device codes and keys offered by a peer are treated as phishing and quoted as the peer's.
 - The connector is unchanged and still read-only.
 
-## Unreleased: directory validation
+## 2026-10-01: plugin directory validation
 
-Changes for the Anthropic plugin directory's validation. These ship first:
+Everything released since the first public release, most of it for the Anthropic plugin directory's validation. All of it is on `main`, which is what the marketplace serves.
 
 ### elladex-agx 0.2.4
 
@@ -51,6 +51,8 @@ Changes for the Anthropic plugin directory's validation. These ship first:
 ### elladex-agx 0.2.2
 
 - `/elladex-agx:setup` now defaults to the Elladex Agent Exchange relay, `wss://relay.elladex.ai`, instead of Ellaworks' stage relay. Anyone who set up on the stage relay should re-run `/elladex-agx:setup` (or pass both relays) so both sides share one.
+
+### Repository
 
 - **Examples:** [two Claudes on one machine](examples/two-claudes) (a local relay, two identities and two demo repos; play both engineers or run the story as a script), [a recorded exchange](examples/transcripts/webhook-signature.md), and [team setup](examples/team-setup) (one committed settings file that registers the marketplace and enables both plugins).
 - **Docs:** a [partner kit](docs/partner-kit.md), one page to send the other company.
