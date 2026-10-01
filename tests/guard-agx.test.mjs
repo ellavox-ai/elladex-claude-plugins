@@ -1270,6 +1270,15 @@ describe("an agx server other than https://app.ellaworks.ai asks", () => {
 			"${env:AGX_API_URL} = 'https://evil.example'",
 			`Set-Item -Path env:AGX_API_URL -Value ${EVIL}`,
 			`[Environment]::SetEnvironmentVariable('AGX_API_URL', '${EVIL}', 'User')`,
+			// A value with more after it isn't the default, whatever it starts with.
+			"$env:AGX_API_URL = 'https://app.ellaworks.ai' + '@evil.example'; agx login",
+			'$env:AGX_API_URL = "https://app.ellaworks.ai" + ".evil.example"',
+			"$env:AGX_API_URL = 'https://app.ellaworks.ai'.Replace('app', 'evil')",
+			"$env:AGX_API_URL += '@evil.example'",
+			`$env:AGX_API_URL ??= '${EVIL}'; agx login`,
+			`Set-Item -Path Env:\\AGX_API_URL -Value ${EVIL}`,
+			`New-Item -Path Env: -Name AGX_API_URL -Value ${EVIL}`,
+			`setx AGX_API_URL ${EVIL}`,
 		]) {
 			assert.equal(tool("PowerShell", { command }), "ask", command);
 		}
@@ -1440,6 +1449,13 @@ describe("API keys stay out of command lines", () => {
 			"Set-Item -Path env:AGX_API_KEY -Value ela_x",
 			"New-Item env:AGX_API_KEY ela_x",
 			"[Environment]::SetEnvironmentVariable('AGX_API_KEY', 'ela_x', 'User')",
+			"$env:AGX_API_KEY ??= (Get-Clipboard)",
+			"$env:AGX_API_KEY = Get-Clipboard",
+			"Set-Item Env:\\AGX_API_KEY ela_x",
+			"New-Item -Path Env: -Name AGX_API_KEY -Value x",
+			"New-Item -Path Env:\\ -Name:AGX_API_KEY -Value x",
+			"Rename-Item Env:\\TMPKEY AGX_API_KEY",
+			"setx AGX_API_KEY ela_x",
 		]) {
 			assert.equal(tool("PowerShell", { command }), "deny", command);
 		}
@@ -1571,8 +1587,302 @@ describe("credentials.json and AGX_HOME", () => {
 			"$env:AGX_HOME='C:\\tmp\\x'",
 			"Set-Item env:AGX_HOME C:\\tmp\\x",
 			"[Environment]::SetEnvironmentVariable(\"AGX_HOME\", \"C:\\tmp\\x\")",
+			"Set-Item -Path Env:\\AGX_HOME -Value C:\\tmp\\x",
+			"Set-Item Env:\\AGX_HOME C:\\tmp\\x",
+			"si -Path:Env:\\AGX_HOME C:\\tmp\\x",
+			"New-Item -Path Env: -Name AGX_HOME -Value C:\\tmp\\x",
+			"setx AGX_HOME C:\\tmp\\x",
+			"setx /M AGX_HOME C:\\tmp\\x",
 		]) {
 			assert.equal(tool("PowerShell", { command }), "deny", command);
+		}
+		// The same commands through an MCP terminal, backslashes intact.
+		assert.equal(
+			tool("mcp__terminal__run_in_terminal", {
+				command: "Set-Item -Path Env:\\AGX_HOME -Value C:\\tmp\\x",
+			}),
+			"deny",
+		);
+	});
+});
+
+describe("AGX_HOME, AGX_API_KEY and AGX_API_URL set without NAME=", () => {
+	// Every shell way to give a variable a value, or to export one set
+	// elsewhere. `unset` and `env -u` stay allowed (see the no-verdict tests).
+	const forms = (NAME, value) => [
+		`read ${NAME} <<< ${value}; export ${NAME}; agx login --json --no-wait`,
+		`read -r ${NAME} < value.txt`,
+		`IFS= read -r ${NAME} < value.txt`,
+		`printf -v ${NAME} '%s' ${value}; export ${NAME}; agx login`,
+		`printf -v${NAME} '%s' ${value}`,
+		`print -v ${NAME} ${value}`,
+		`mapfile -t ${NAME} < value.txt`,
+		`readarray ${NAME} < value.txt`,
+		`getopts ab ${NAME}`,
+		`export ${NAME}`,
+		`declare -x ${NAME}`,
+		`typeset -gx ${NAME}`,
+		`local ${NAME}`,
+		`readonly ${NAME}`,
+		`builtin export ${NAME}`,
+		`command read ${NAME} < value.txt`,
+		`declare -n r=${NAME}; r=${value}; agx login`,
+		`typeset -n r=${NAME}`,
+		`for ${NAME} in ${value}; do agx login; done`,
+		`select ${NAME} in ${value}; do break; done`,
+		`set -gx ${NAME} ${value}`,
+		`setenv ${NAME} ${value}`,
+		`launchctl setenv ${NAME} ${value}`,
+		`: \${${NAME}:=${value}}; agx login`,
+		`: \${${NAME}=${value}}`,
+		`: \${${NAME}::=${value}}`,
+		`${NAME}[0]=${value} agx login`,
+		`eval 'read ${NAME} <<< ${value}'`,
+		`bash -c 'read ${NAME} <<< ${value}; agx login'`,
+		`ssh host 'printf -v ${NAME} %s ${value}; agx login'`,
+	];
+
+	it("denies AGX_HOME set any of these ways", () => {
+		for (const command of forms("AGX_HOME", "/tmp/x")) {
+			assert.equal(bash(command), "deny", command);
+			assert.equal(bash(command, "claude-sends"), "deny", command);
+		}
+		assert.match(verdictOf("read AGX_HOME <<< /tmp/x").reason, /AGX_HOME/);
+	});
+
+	it("denies AGX_API_KEY set any of these ways", () => {
+		for (const command of forms("AGX_API_KEY", "x")) {
+			assert.equal(bash(command), "deny", command);
+		}
+		assert.equal(bash(": ${AGX_API_KEY:=$(pbpaste)}; export AGX_API_KEY"), "deny");
+	});
+
+	it("asks for AGX_API_URL set any of these ways", () => {
+		for (const command of forms("AGX_API_URL", EVIL)) {
+			assert.equal(bash(command), "ask", command);
+		}
+		// A value it can't read is not the default.
+		assert.equal(bash(": ${AGX_API_URL:=https://app.ellaworks.ai}"), "none");
+		assert.equal(
+			bash("AGX_API_URL=https://app.ellaworks.ai; export AGX_API_URL; agx login"),
+			"ask",
+		);
+	});
+
+	it("leaves other variables, tests and unsets alone", () => {
+		for (const command of [
+			"read -r line < file.txt; agx whoami",
+			"printf -v now '%s' x; agx whoami",
+			"for f in *.json; do jq . \"$f\"; done && agx whoami",
+			"export PATH=\"$HOME/bin:$PATH\" && agx whoami",
+			"declare -a arr=(1 2)",
+			"set -e; agx whoami",
+			"set -e AGX_HOME",
+			"unset AGX_HOME AGX_API_KEY AGX_API_URL",
+			"launchctl unsetenv AGX_HOME",
+		]) {
+			assert.equal(bash(command), "none", command);
+		}
+	});
+});
+
+describe("HOME moved for an agx command", () => {
+	// agx keeps its files in $HOME/.agx when AGX_HOME is unset (Node's
+	// homedir() reads HOME; USERPROFILE on Windows).
+	it("denies HOME set in a command line that runs agx", () => {
+		for (const command of [
+			"HOME=/tmp/x agx login --json --no-wait",
+			"HOME=/tmp/x agx whoami",
+			"env HOME=/tmp/x agx login",
+			"export HOME=/tmp/x; agx login",
+			"export HOME=/tmp/x && agx login --json --no-wait",
+			"HOME=/tmp/x; agx login",
+			"HOME=/tmp/x npx -y @nostr-agx/cli login",
+			'HOME=/tmp/x node "$(command -v agx)" login',
+			'HOME=/tmp/x "$AGX" login',
+			"HOME=/tmp/x bash -c 'agx login'",
+			"bash -c 'HOME=/tmp/x agx whoami'",
+			"ssh host 'HOME=/tmp/x agx login'",
+			"read HOME <<< /tmp/x; agx login",
+			"for HOME in /tmp/x; do agx login; done",
+			"typeset -n r=HOME; r=/tmp/x; agx login",
+			"cd /tmp/x && HOME=$PWD agx login",
+		]) {
+			assert.equal(bash(command), "deny", command);
+			assert.equal(bash(command, "claude-sends"), "deny", command);
+		}
+		for (const command of [
+			"$env:USERPROFILE = 'C:\\tmp\\x'; agx login",
+			"$env:HOME = '/tmp/x'; agx login",
+			"Set-Item Env:\\USERPROFILE C:\\tmp\\x; agx login",
+			"[Environment]::SetEnvironmentVariable('USERPROFILE', 'C:\\x'); agx login",
+		]) {
+			assert.equal(tool("PowerShell", { command }), "deny", command);
+		}
+		const verdict = verdictOf("HOME=/tmp/x agx login");
+		assert.match(verdict.reason, /HOME/);
+		assert.match(verdict.reason, /agx login/);
+		assert.match(verdict.reason, /revoke/);
+	});
+
+	it("leaves HOME alone when agx doesn't run, and reading it", () => {
+		for (const command of [
+			"HOME=/tmp/x npm test",
+			"HOME=/tmp/fake node --test tests/*.test.mjs",
+			"HOME=/tmp/h pnpm --filter @nostr-agx/cli test",
+			"export HOME=/tmp/x",
+			"echo $HOME && agx whoami",
+			"cd ~ && agx whoami",
+			'[ "$HOME" = /Users/x ] && agx whoami',
+			'git commit -m "HOME=/tmp/x agx login is denied"',
+		]) {
+			assert.equal(bash(command), "none", command);
+		}
+	});
+});
+
+describe("a shell startup file is a command line", () => {
+	// What is written there runs in every later shell, Claude Code's included.
+	it("reads a heredoc written to a startup file as shell", () => {
+		for (const [command, decision] of [
+			["cat >> ~/.zshenv <<'EOF'\nexport AGX_HOME=/tmp/x\nEOF", "deny"],
+			["cat >> ~/.bashrc <<EOF\nexport AGX_API_KEY=x\nEOF", "deny"],
+			["tee -a ~/.profile <<'EOF'\nread AGX_HOME < /tmp/h\nEOF", "deny"],
+			[`cat > ~/.config/fish/conf.d/agx.fish <<EOF\nset -gx AGX_API_URL ${EVIL}\nEOF`, "ask"],
+			["cat >> .envrc <<EOF\nexport AGX_HOME=/tmp/x\nEOF", "deny"],
+			["cat >> ~/.zshrc <<'EOF'\nexport PATH=\"$HOME/.local/bin:$PATH\"\nEOF", "none"],
+			["cat >> ~/.zshrc <<'EOF'\nalias ll='ls -la'\nEOF", "none"],
+			// Any other file is still text.
+			["cat > notes.md <<EOF\nexport AGX_HOME=/tmp/x\nEOF", "none"],
+		]) {
+			assert.equal(bash(command), decision, command);
+		}
+	});
+
+	it("checks what Write and Edit put into a startup file", () => {
+		const zshenv = `${homedir()}/.zshenv`;
+		assert.equal(
+			tool("Write", { file_path: zshenv, content: "export AGX_HOME=/tmp/x\n" }),
+			"deny",
+		);
+		assert.equal(
+			tool("Edit", {
+				file_path: `${homedir()}/.bashrc`,
+				old_string: "# end",
+				new_string: `export AGX_API_URL=${EVIL}\n# end`,
+			}),
+			"ask",
+		);
+		assert.equal(
+			tool("MultiEdit", {
+				file_path: `${homedir()}/.zprofile`,
+				edits: [{ old_string: "a", new_string: "export AGX_API_KEY=x" }],
+			}),
+			"deny",
+		);
+		assert.equal(
+			tool("Write", {
+				file_path: zshenv,
+				content: 'export PATH="$HOME/bin:$PATH"\n',
+			}),
+			"none",
+		);
+		assert.equal(
+			tool("Write", {
+				file_path: "/work/docs/setup.md",
+				content: "export AGX_HOME=/tmp/x\n",
+			}),
+			"none",
+		);
+	});
+});
+
+describe("agx run after loading variables the guard can't read asks", () => {
+	it("asks", () => {
+		for (const command of [
+			"cat > /tmp/e <<EOF\nAGX_HOME=/tmp/x\nEOF\nenv $(cat /tmp/e) agx login --json --no-wait",
+			"source /tmp/e; agx login",
+			"set -a; . /tmp/e; set +a; agx login",
+			"export $(cat /tmp/e) && agx login",
+			'eval "$(cat /tmp/e)"; agx login',
+			"dotenv -e /tmp/e -- agx login",
+			'node --env-file=/tmp/e "$(command -v agx)" login',
+			"bash -c 'source /tmp/e && agx whoami'",
+		]) {
+			assert.equal(bash(command), "ask", command);
+		}
+		assert.match(
+			verdictOf("source /tmp/e; agx login").reason,
+			/can't read/,
+		);
+	});
+
+	it("leaves loading alone when agx doesn't run", () => {
+		for (const command of [
+			"source .venv/bin/activate && pytest",
+			"export $(grep -v '^#' .env | xargs) && npm start",
+			"node --env-file=.env server.js",
+		]) {
+			assert.equal(bash(command), "none", command);
+		}
+	});
+});
+
+describe("an inherited AGX_API_KEY is never printed", () => {
+	it("denies printing or passing it on", () => {
+		for (const command of [
+			"printenv AGX_API_KEY",
+			"echo $AGX_API_KEY",
+			'echo "${AGX_API_KEY}"',
+			'echo "key: $AGX_API_KEY"',
+			'printf \'%s\' "$AGX_API_KEY" | pbcopy',
+			"echo ${AGX_API_KEY:0:12}",
+			'curl -H "X-API-Key: $AGX_API_KEY" https://app.ellaworks.ai/api/rpc/account/principal/get',
+			"bash -c 'echo $AGX_API_KEY'",
+			'echo "$(printenv AGX_API_KEY)"',
+			"declare -p AGX_API_KEY",
+			"env | grep AGX",
+			"env | grep -i api_key",
+			"printenv | grep -i agx",
+			"set | grep AGX_API",
+			"export -p | rg -i agx",
+		]) {
+			assert.equal(bash(command), "deny", command);
+			assert.equal(bash(command, "claude-sends"), "deny", command);
+		}
+		for (const command of [
+			"Write-Output $env:AGX_API_KEY",
+			'echo "key=$env:AGX_API_KEY"',
+			"Get-Item Env:\\AGX_API_KEY",
+			"gci env:AGX_API_KEY",
+		]) {
+			assert.equal(tool("PowerShell", { command }), "deny", command);
+		}
+		const verdict = verdictOf("echo $AGX_API_KEY");
+		assert.match(verdict.reason, /\[ -n "\$AGX_API_KEY" \] && echo set/);
+		assert.match(verdict.reason, /revoke/);
+	});
+
+	it("leaves a test that prints nothing but 'set' alone", () => {
+		for (const command of [
+			'[ -n "$AGX_API_KEY" ] && echo set',
+			'if [ -n "$AGX_API_KEY" ]; then echo set; fi',
+			'test -n "$AGX_API_KEY" && echo set',
+			"[[ -n $AGX_API_KEY ]] && echo set",
+			"echo ${AGX_API_KEY:+set}",
+			"echo ${#AGX_API_KEY}",
+			"bash -c '[ -n \"$AGX_API_KEY\" ] && echo set'",
+			"env | grep PATH",
+			"printenv HOME",
+		]) {
+			assert.equal(bash(command), "none", command);
+		}
+		for (const command of [
+			"if ($env:AGX_API_KEY) { 'set' }",
+			"Test-Path Env:AGX_API_KEY",
+			"Remove-Item Env:\\AGX_API_KEY",
+		]) {
+			assert.equal(tool("PowerShell", { command }), "none", command);
 		}
 	});
 });
@@ -1762,6 +2072,33 @@ describe("known gaps in the login rules (documented, not caught)", () => {
 			tool("mcp__claude-in-chrome__javascript_tool", {
 				text: "location.href = 'https://app.ellaworks.ai/auth/device'",
 			}),
+			"none",
+		);
+	});
+
+	it("a variable set in one call of a terminal that keeps its shell", () => {
+		// The Bash tool starts each call fresh; an MCP terminal may not, so
+		// HOME set in one call and agx run in the next aren't connected.
+		assert.equal(
+			tool("mcp__terminal__run_in_terminal", { command: "export HOME=/tmp/x" }),
+			"none",
+		);
+	});
+
+	it("a read of a moved login, once the move itself got through", () => {
+		assert.equal(bash("cat /tmp/x/credentials.json"), "none");
+		assert.equal(bash("grep -r ela_ /tmp/x"), "none");
+	});
+
+	it("variables loaded by a program it doesn't know", () => {
+		assert.equal(bash("doppler run -- agx login"), "none");
+	});
+
+	it("the whole environment printed with no filter", () => {
+		assert.equal(bash("env"), "none");
+		assert.equal(tool("PowerShell", { command: "$env:AGX_API_KEY" }), "none");
+		assert.equal(
+			bash("python3 -c 'import os; print(os.environ[\"AGX_API_KEY\"])'"),
 			"none",
 		);
 	});
