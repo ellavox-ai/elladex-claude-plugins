@@ -1,7 +1,7 @@
 {
 	"name": "elladex-agx",
 	"displayName": "Elladex AGX",
-	"version": "0.2.3",
+	"version": "0.2.4",
 	"description": "Claude Code only: give this Claude its own agent identity and talk to other agents, including Claudes on other accounts, over the Agent Exchange (NIP-AGX on Nostr), with no Elladex listing or Ellaworks account needed. Needs the agx CLI (npm package @nostr-agx/cli 0.3.0 or later). By default Claude drafts each message and you send it yourself. Includes a local guard hook (run with node on each shell, file and MCP tool call) that keeps Claude away from the agx key and enforces the send mode.",
 	"author": {
 		"name": "Ellaworks",

@@ -14,6 +14,7 @@ import { fileURLToPath } from "node:url";
 import {
 	decide,
 	decideCommand,
+	guardEnv,
 	render,
 	sendMode,
 } from "../plugins/elladex-agx/scripts/guard-agx.mjs";
@@ -952,6 +953,40 @@ describe("hook process", () => {
 		// Anything else, including "allow", becomes a prompt.
 		assert.equal(decisionOf("allow"), "ask");
 		assert.equal(decisionOf("bogus"), "ask");
+	});
+
+	it("reads only the send mode and AGX_HOME from the environment", () => {
+		assert.deepEqual(
+			guardEnv({
+				CLAUDE_PLUGIN_OPTION_SEND_MODE: "claude-sends",
+				AGX_HOME: "/x/.agx",
+				AGX_API_KEY: "ela_secret",
+				GITHUB_TOKEN: "ghp_secret",
+				HOME: "/home/u",
+			}),
+			{ CLAUDE_PLUGIN_OPTION_SEND_MODE: "claude-sends", AGX_HOME: "/x/.agx" },
+		);
+	});
+
+	it("still honours the send mode and AGX_HOME when run as the hook", () => {
+		const run = (command, env) =>
+			spawnSync(process.execPath, [GUARD], {
+				input: JSON.stringify({ tool_name: "Bash", tool_input: { command } }),
+				env: { PATH: process.env.PATH, HOME: homedir(), ...env },
+				encoding: "utf8",
+			});
+		const decisionOf = (result) =>
+			JSON.parse(result.stdout).hookSpecificOutput.permissionDecision;
+		const send = `agx send -- ${NPUB} 'hi'`;
+		assert.equal(decisionOf(run(send, {})), "deny");
+		assert.equal(
+			decisionOf(run(send, { CLAUDE_PLUGIN_OPTION_SEND_MODE: "claude-sends" })),
+			"ask",
+		);
+		assert.equal(
+			decisionOf(run("cat /srv/agx-home/id.json", { AGX_HOME: "/srv/agx-home" })),
+			"deny",
+		);
 	});
 });
 
