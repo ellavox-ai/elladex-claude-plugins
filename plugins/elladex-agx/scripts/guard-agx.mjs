@@ -7,9 +7,10 @@
  * (hooks/hooks.json): an MCP tool's `command`, `cmd` or `script` input is
  * checked like Bash (the Desktop terminal tool runs commands in the user's own
  * shell), and its path inputs like Read. It reads the hook input as JSON on
- * stdin and the plugin's `send_mode` option from CLAUDE_PLUGIN_OPTION_SEND_MODE,
- * and prints a `hookSpecificOutput` decision, or nothing at all when it has no
- * opinion:
+ * stdin, and from the environment only the plugin's `send_mode` option
+ * (CLAUDE_PLUGIN_OPTION_SEND_MODE) and AGX_HOME (see `guardEnv`). It prints a
+ * `hookSpecificOutput` decision of deny or ask, or nothing at all when it has
+ * no opinion; it never approves a tool call:
  *
  *   deny   `agx identity export`, `agx config show --reveal`, any tool call that
  *          touches ~/.agx or $AGX_HOME (the secret key and the allowlist live
@@ -1833,6 +1834,21 @@ export function render(verdict) {
 	});
 }
 
+/**
+ * The only environment variables the guard reads: the send mode Claude Code
+ * passes in, and AGX_HOME so the key directory is protected wherever it is.
+ * Nothing else from the environment reaches `decide`.
+ *
+ * @param {Record<string, string | undefined>} env
+ * @returns {{ CLAUDE_PLUGIN_OPTION_SEND_MODE?: string, AGX_HOME?: string }}
+ */
+export function guardEnv(env) {
+	return {
+		CLAUDE_PLUGIN_OPTION_SEND_MODE: env.CLAUDE_PLUGIN_OPTION_SEND_MODE,
+		AGX_HOME: env.AGX_HOME,
+	};
+}
+
 async function main() {
 	let raw = "";
 	for await (const chunk of process.stdin) {
@@ -1847,7 +1863,7 @@ async function main() {
 	}
 	let verdict;
 	try {
-		verdict = decide(input, process.env);
+		verdict = decide(input, guardEnv(process.env));
 	} catch (error) {
 		// A parser bug must not wave an agx command through: ask instead.
 		const text = JSON.stringify(input?.tool_input ?? "");

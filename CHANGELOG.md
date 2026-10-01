@@ -4,6 +4,10 @@
 
 Changes for the Anthropic plugin directory's validation:
 
+### elladex-agx 0.2.4
+
+- The guard hook now reads only two environment variables, `CLAUDE_PLUGIN_OPTION_SEND_MODE` and `AGX_HOME` (`guardEnv`), instead of being handed the whole environment.
+
 ### elladex 0.1.4
 
 - A listing icon (`.claude-plugin/icon.png`, the Elladex sphere) and `privacyPolicyUrl` in `plugin.json`.
