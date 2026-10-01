@@ -28,8 +28,9 @@ Then run `agx --version`.
 - **It prints `0.3.0` or later:** continue. Use `agx` in every step below.
 - **It prints an older version** (for example `0.2.0`): stop. That `agx` lacks the flags this plugin relies on (`--allowed-only`, `--full-ids`, `--no-tasks`). Ask the user to upgrade it in their own terminal, then run `/elladex-agx:setup` again:
   ```bash
-  npm install -g @nostr-agx/cli@^0.3.0
+  npm install -g @nostr-agx/cli@^0.4.0
   ```
+  That installs the current `agx`. Messaging needs only 0.3.0, so don't ask a user on 0.3.x to upgrade here; `agx login` (the `login` skill) is what needs 0.4.0.
 - **`command not found`:** stop, and ask the user to install it in their own terminal with the same command, then run `/elladex-agx:setup` again. It needs Node.js 20 or later.
 
 Don't run `npm install` yourself, and don't try `npx`, `pnpm` or a checkout path instead. If npm can't find `@nostr-agx/cli`, point the user to the Requirements section of the plugin README.

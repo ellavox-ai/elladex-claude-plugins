@@ -473,6 +473,7 @@ describe("no opinion on everything else", () => {
 		"git status",
 		"npm install -g @agx/cli@^0.3.0",
 		"npm install -g @nostr-agx/cli@^0.3.0",
+		"npm install -g @nostr-agx/cli@^0.4.0",
 		'grep -n "agx send" README.md',
 		"echo agx send is documented",
 		"pnpm agx:build",

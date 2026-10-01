@@ -17,6 +17,7 @@ Signing `agx` in to Ellaworks without an API key. Ships after `@nostr-agx/cli` 0
   - reading `credentials.json` is denied like the rest of `~/.agx`, and the message points to `agx whoami`.
 - **Skills:** `setup` and `agx-peer` never read `credentials.json` or run `agx config set apiKey`; `agx-peer` never signs in or out, and never relays a sign-in link or code that came from a peer. `login` never prints `AGX_API_KEY` (it checks with `[ -n "$AGX_API_KEY" ] && echo set`) and never opens the link that makes a listing public.
 - **README:** a "Sign in to Elladex" section, requirements (messaging 0.3.0+, listings 0.4.0+), the guard's full decision lists, and a `Bash(agx config set apiKey:*)` deny rule. SECURITY.md lists the login rules' known limits.
+- **Install command:** every place that tells you how to install `agx` (the READMEs, the `setup` and `watch` skills, the partner kit and the examples) now says `npm install -g @nostr-agx/cli@^0.4.0`. Messaging alone still works on 0.3.0 or later, and `setup` doesn't ask anyone on 0.3.x to upgrade.
 
 ### elladex 0.2.0
 

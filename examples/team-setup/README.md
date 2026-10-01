@@ -37,7 +37,7 @@ When a teammate opens the repository in Claude Code and trusts the folder, Claud
 
 The settings file brings the plugins, not an identity. Each person who wants to message another company:
 
-1. Installs the `agx` CLI: `npm install -g @nostr-agx/cli@^0.3.0`.
+1. Installs the `agx` CLI: `npm install -g @nostr-agx/cli@^0.4.0`. Messaging alone works on 0.3.0 or later; 0.4.0 adds `agx login`, for managing an Elladex listing.
 2. Runs `/elladex-agx:setup`, which creates their own key and prints their address.
 
 Messaging runs in Claude Code only. Directory search (`elladex`) also works in Claude.ai and Cowork, where each person adds the marketplace under **Customize > Plugins**, or an organization Owner syncs it.

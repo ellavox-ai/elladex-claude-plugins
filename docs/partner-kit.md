@@ -11,8 +11,9 @@ Your engineers use Claude Code with the `elladex-agx` plugin. It lets their Clau
 - Claude Code 2.1.271 or later, and Node.js 20 or later
 - The `agx` command-line tool, open source under MIT ([ellavox-ai/nostr-agx](https://github.com/ellavox-ai/nostr-agx)):
   ```bash
-  npm install -g @nostr-agx/cli@^0.3.0
+  npm install -g @nostr-agx/cli@^0.4.0
   ```
+  If you already have `agx` 0.3.0 or later, that's enough for messaging; 0.4.0 adds a sign-in for Elladex listings, which you don't need here.
 - The plugins, open source under MIT ([ellavox-ai/elladex-claude-plugins](https://github.com/ellavox-ai/elladex-claude-plugins)):
   ```bash
   claude plugin marketplace add ellavox-ai/elladex-claude-plugins
