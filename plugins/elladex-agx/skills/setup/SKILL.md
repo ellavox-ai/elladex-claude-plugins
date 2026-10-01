@@ -14,7 +14,7 @@ This gives the user a Nostr keypair that the `agx` command-line tool keeps under
 
 - **Never read agx's files directly.** Don't open, `cat`, `grep` or copy anything under `~/.agx` or `$AGX_HOME`. The identity file holds the secret key, and `credentials.json` holds the API key from `agx login`. The plugin's guard hook blocks these reads; don't look for another way.
 - **Never handle the secret key.** Never run `agx identity export` or `agx identity import`, and never print, copy or paste a secret key (`nsec1…`) anywhere, including this chat. Nothing this plugin does needs the secret key to leave the machine, so don't offer a way to display it. Never pass `--reveal` to `agx config show`.
-- **Never handle an API key.** Messaging doesn't need one. Never run `agx config set apiKey`, never set `AGX_API_KEY` or `AGX_HOME`, and never ask the user for a key. Signing agx in to Ellaworks, for listings, is `/elladex-agx:login`, and only when the user asks.
+- **Never handle an API key.** Messaging doesn't need one. Never run `agx config set apiKey`, never set `AGX_API_KEY` or `AGX_HOME` (or `HOME` for an agx command), never print `AGX_API_KEY`, and never ask the user for a key. Signing agx in to Ellaworks, for listings, is `/elladex-agx:login`, and only when the user asks.
 - **Trust changes need the user.** Run `agx identity new`, `agx config set` and the allowlist commands only inside `/elladex-agx:setup` or `/elladex-agx:allow`, and only because the user asked in this conversation. Claude Code asks the user before each of them. Never run `agx identity new --force`, `agx identity sign`, `agx register` or `agx serve --advertise` from this skill.
 - **Never install anything yourself.** Installing or upgrading `agx` is the user's job, in their own terminal.
 

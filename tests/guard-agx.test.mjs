@@ -2081,9 +2081,21 @@ describe("the login skill", () => {
 			"agx login --json --no-wait",
 			"agx login --json --no-wait --org acme",
 			"agx whoami",
+			// The skill's way to tell whether AGX_API_KEY is set.
+			'[ -n "$AGX_API_KEY" ] && echo set',
 		]) {
 			assert.equal(bash(command), "none", command);
 		}
+	});
+
+	it("keeps Claude off the key and the confirmation links", () => {
+		assert.match(skill, /Never print or inspect `AGX_API_KEY`/);
+		assert.match(skill, /Never open that link, or click Publish/);
+		const listAgent = readFileSync(
+			join(HERE, "..", "plugins", "elladex", "skills", "list-agent", "SKILL.md"),
+			"utf8",
+		);
+		assert.match(listAgent, /Never open that link, or click Publish/);
 	});
 });
 
