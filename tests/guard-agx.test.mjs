@@ -855,6 +855,10 @@ describe("known gaps (documented, not caught)", () => {
 			"a heredoc piped into a shell",
 			"cat <<'EOF' | bash\nagx send npub1x hi\nEOF",
 		],
+		[
+			"a script in another language that hands agx its arguments as a list",
+			`python3 -c 'import subprocess; subprocess.run(["agx", "send", "npub1x", "hi"])'`,
+		],
 		["a glob for the key directory", "cat ~/.a?x/config.json"],
 		["a shell search of the whole home directory", "grep -r nsec1 ~"],
 	];
@@ -1641,6 +1645,24 @@ describe("AGX_HOME, AGX_API_KEY and AGX_API_URL set without NAME=", () => {
 		`eval 'read ${NAME} <<< ${value}'`,
 		`bash -c 'read ${NAME} <<< ${value}; agx login'`,
 		`ssh host 'printf -v ${NAME} %s ${value}; agx login'`,
+		// Past a `function` head, a zsh prompt and a precommand modifier.
+		`function f { read ${NAME} < value.txt; }; f; agx login`,
+		`read ${NAME}?value:`,
+		`read "${NAME}?value: "`,
+		`noglob export ${NAME}`,
+		// The name spelled by brace expansion.
+		`export AGX_{${NAME.slice(4)},X}=${value}; agx login`,
+		`export {AGX_,X}${NAME.slice(4)}=${value}`,
+		`env AGX_{${NAME.slice(4)},X}=${value} agx login`,
+		// Set for the windows tmux opens later.
+		`tmux setenv ${NAME} ${value}`,
+		`tmux set-environment -g ${NAME} ${value}`,
+		// Another language's environment table, indexed by the name.
+		`python3 -c 'import os; os.environ["${NAME}"]="${value}"; os.execvp("agx", ["agx", "login"])'`,
+		`node -e 'process.env["${NAME}"] = "${value}"; require("child_process").execSync("agx login")'`,
+		`ruby -e 'ENV["${NAME}"]="${value}"; exec "agx", "login"'`,
+		`perl -e '$ENV{${NAME}}="${value}"; exec "agx", "login"'`,
+		`awk 'BEGIN { ENVIRON["${NAME}"]="${value}"; system("agx login") }'`,
 	];
 
 	it("denies AGX_HOME set any of these ways", () => {
@@ -1670,6 +1692,27 @@ describe("AGX_HOME, AGX_API_KEY and AGX_API_URL set without NAME=", () => {
 		);
 	});
 
+	it("denies PowerShell's and Windows' other spellings", () => {
+		for (const command of [
+			"Start-Process agx -ArgumentList login -Environment @{AGX_HOME='C:\\tmp\\x'}",
+			"$psi.EnvironmentVariables['AGX_HOME'] = 'C:\\tmp\\x'; [Diagnostics.Process]::Start($psi)",
+			"$psi.Environment['AGX_API_KEY'] = 'x'",
+			// What `setx` writes: the user's environment in the registry.
+			"reg add HKCU\\Environment /v AGX_HOME /d C:\\tmp\\x /f",
+			"Set-ItemProperty -Path HKCU:\\Environment -Name AGX_HOME -Value C:\\tmp\\x",
+			"New-ItemProperty HKCU:\\Environment -Name AGX_API_KEY -Value x",
+			"cmd /c setx AGX_HOME C:\\tmp\\x",
+		]) {
+			assert.equal(tool("PowerShell", { command }), "deny", command);
+		}
+		assert.equal(
+			tool("PowerShell", {
+				command: `Set-ItemProperty -Path HKCU:\\Environment -Name AGX_API_URL -Value ${EVIL}`,
+			}),
+			"ask",
+		);
+	});
+
 	it("leaves other variables, tests and unsets alone", () => {
 		for (const command of [
 			"read -r line < file.txt; agx whoami",
@@ -1681,6 +1724,132 @@ describe("AGX_HOME, AGX_API_KEY and AGX_API_URL set without NAME=", () => {
 			"set -e AGX_HOME",
 			"unset AGX_HOME AGX_API_KEY AGX_API_URL",
 			"launchctl unsetenv AGX_HOME",
+			"function f { echo hi; }; f; agx whoami",
+			"mkdir -p src/{lib,bin,test} && agx whoami",
+			"tmux setenv EDITOR vim",
+			"env -u AGX_HOME agx whoami",
+			"pnpm vitest run -t AGX_HOME",
+			"git log -S AGX_HOME --oneline",
+		]) {
+			assert.equal(bash(command), "none", command);
+		}
+		for (const command of [
+			"reg query HKCU\\Environment",
+			"Get-ItemProperty -Path HKCU:\\Environment",
+			"Start-Process node -ArgumentList server.js -Environment @{NODE_ENV='production'}",
+		]) {
+			assert.equal(tool("PowerShell", { command }), "none", command);
+		}
+	});
+});
+
+describe("under allexport, naming a variable sets it", () => {
+	// `set -a` exports whatever a later builtin fills, and the guard can't
+	// list every builtin that fills a variable: there, a bare name is a write.
+	const fills = (NAME) => [
+		`sysread ${NAME} < value.txt`,
+		`zstyle -s :agx home ${NAME}`,
+		`zparseopts -A ${NAME} x`,
+		`wait -p ${NAME} -n`,
+		`strftime -s ${NAME} %s`,
+		`zstat -A ${NAME} value.txt`,
+	];
+	const switches = [
+		"set -a",
+		"set -eua",
+		"set -o allexport",
+		"setopt allexport",
+		"setopt ALL_EXPORT",
+		"emulate zsh -o allexport",
+	];
+
+	it("denies AGX_HOME and AGX_API_KEY, and asks for AGX_API_URL", () => {
+		for (const on of switches) {
+			for (const [NAME, decision] of [
+				["AGX_HOME", "deny"],
+				["AGX_API_KEY", "deny"],
+				["AGX_API_URL", "ask"],
+			]) {
+				for (const fill of fills(NAME)) {
+					const command = `${on}; ${fill}; agx login --json --no-wait`;
+					assert.equal(bash(command), decision, command);
+				}
+			}
+		}
+		assert.equal(
+			bash("zsh -a -c 'sysread AGX_HOME < value.txt; agx login'"),
+			"deny",
+		);
+	});
+
+	it("denies HOME moved that way for an agx command", () => {
+		for (const fill of fills("HOME")) {
+			const command = `set -a; ${fill}; agx login`;
+			assert.equal(bash(command), "deny", command);
+		}
+		assert.equal(bash("set -a; sysread HOME < value.txt; npm test"), "none");
+	});
+
+	it("leaves a variable that is never exported, and reads, alone", () => {
+		for (const command of [
+			// Filled but not exported: agx never sees it.
+			...fills("AGX_HOME"),
+			"sysread AGX_HOME < value.txt; agx login",
+			"set -a; . ./.env; set +a; npm start",
+			"set -a; unset AGX_HOME AGX_API_URL",
+			"set -a; [ -v AGX_HOME ] && echo set",
+			"set -a; env -u AGX_HOME npm test",
+			"bash -a -c 'env | sort'",
+		]) {
+			assert.equal(bash(command), "none", command);
+		}
+	});
+});
+
+describe("a script in another language that names agx's variables asks", () => {
+	// The guard can't parse python or JavaScript: a script that names one of
+	// agx's variables may set it, pass it on or print it.
+	it("asks for AGX_HOME, AGX_API_KEY and AGX_API_URL", () => {
+		for (const command of [
+			`python3 -c 'import os, subprocess; subprocess.run(["agx", "login"], env={**os.environ, "AGX_HOME": "/tmp/x"})'`,
+			`python3 -c 'import os; os.putenv("AGX_HOME", "/tmp/x"); os.system("agx login")'`,
+			`node -e 'require("child_process").spawnSync("agx", ["login"], { env: { ...process.env, AGX_HOME: "/tmp/x" } })'`,
+			`deno eval 'Deno.env.set("AGX_API_URL", "${EVIL}"); new Deno.Command("agx", { args: ["login"] }).spawn()'`,
+			`nu -c 'with-env { AGX_HOME: "/tmp/x" } { agx login }'`,
+			'python3 - <<\'EOF\'\nimport os, subprocess\nsubprocess.run(["agx", "login"], env=dict(os.environ, AGX_HOME="/tmp/x"))\nEOF',
+			'node - <<\'EOF\'\nprocess.env["AGX_HOME"] = "/tmp/x";\nrequire("child_process").spawnSync("agx", ["login"]);\nEOF',
+			// Reading the key in a script gets the same prompt.
+			`python3 -c 'import os; print(os.environ["AGX_API_KEY"])'`,
+			"node -p 'process.env.AGX_API_KEY'",
+		]) {
+			assert.equal(bash(command), "ask", command);
+			assert.equal(bash(command, "claude-sends"), "ask", command);
+		}
+		const verdict = verdictOf("node -p 'process.env.AGX_API_KEY'");
+		assert.match(verdict.reason, /names AGX_API_KEY/);
+		assert.match(verdict.reason, /can't read what it does with it/);
+	});
+
+	it("asks for HOME when the script also runs agx", () => {
+		for (const command of [
+			`node -e 'require("child_process").spawnSync("agx", ["login"], { env: { ...process.env, HOME: "/tmp/x" } })'`,
+			`python3 -c 'import os, subprocess; subprocess.run(["npx", "@nostr-agx/cli", "login"], env={**os.environ, "HOME": "/tmp/x"})'`,
+			'python3 - <<\'EOF\'\nimport os, subprocess\nsubprocess.run(["agx", "login"], env=dict(os.environ, HOME="/tmp/x"))\nEOF',
+		]) {
+			assert.equal(bash(command), "ask", command);
+		}
+	});
+
+	it("leaves scripts that only name HOME, or nothing of agx's, alone", () => {
+		for (const command of [
+			`python3 -c 'import os; print(os.environ["HOME"])'`,
+			"node -e 'console.log(process.env.HOME)'",
+			"node -e 'console.log(\"agx\")'",
+			"python3 -c 'print(\"AGX_HOME_DIR\")'",
+			"python3 - <<'EOF'\nimport os\nprint(os.environ.get(\"HOME\"))\nEOF",
+			"HOME=/tmp/fake node --test tests/guard-agx.test.mjs",
+			"node -r ts-node/register script.ts",
+			"python3 script.py --home HOME",
 		]) {
 			assert.equal(bash(command), "none", command);
 		}
@@ -1708,6 +1877,13 @@ describe("HOME moved for an agx command", () => {
 			"for HOME in /tmp/x; do agx login; done",
 			"typeset -n r=HOME; r=/tmp/x; agx login",
 			"cd /tmp/x && HOME=$PWD agx login",
+			// agx kept under another name.
+			'A=agx; HOME=/tmp/x "$A" whoami',
+			"alias a=agx\nHOME=/tmp/x a login",
+			"export H{OME,X}=/tmp/x; agx login",
+			"function f { read HOME < value.txt; }; f; agx login",
+			`python3 -c 'import os; os.environ["HOME"]="/tmp/x"; os.execvp("agx", ["agx", "login"])'`,
+			"HOME=/tmp/x deno run -A npm:@nostr-agx/cli login",
 		]) {
 			assert.equal(bash(command), "deny", command);
 			assert.equal(bash(command, "claude-sends"), "deny", command);
@@ -1742,6 +1918,166 @@ describe("HOME moved for an agx command", () => {
 	});
 });
 
+describe("a command line the guard can't read to the end asks", () => {
+	// Claude Code stops a hook after 10 seconds, and a stopped hook decides
+	// nothing. So the guard reads a bounded number of pieces, gives itself a
+	// time budget, and asks about whatever it left unread.
+	const padding = Array.from({ length: 250 }, (_, k) => `$(echo ${k})`).join(
+		" ",
+	);
+
+	it("asks past the pieces it reads", () => {
+		for (const command of [
+			`: ${padding}; eval 'read AGX_HOME < /tmp/h; export AGX_HOME'; agx login`,
+			`: ${padding}; eval 'agx config show --reveal'`,
+			`: ${padding}; eval 'claude plugin disable --all'`,
+		]) {
+			assert.equal(bash(command), "ask", command.slice(-60));
+			assert.equal(bash(command, "claude-sends"), "ask", command.slice(-60));
+		}
+		assert.match(
+			verdictOf(`: ${padding}; eval 'agx config show --reveal'`).reason,
+			/too long, too deeply nested/,
+		);
+		// Nothing of agx's or Claude Code's in it: no opinion.
+		assert.equal(bash(`: ${padding}; eval 'npm test'`), "none");
+	});
+
+	it("asks when one command says agx more often than it reads", () => {
+		const many = "agx ".repeat(100);
+		assert.equal(bash(`ls ${many}`), "ask");
+		assert.equal(bash(`run-all '${many}'`), "ask");
+		assert.equal(
+			bash(`python3 - <<'EOF'\n${"agx = 1\n".repeat(100)}EOF`),
+			"ask",
+		);
+		// Text is still text, and what it can read it still denies.
+		assert.equal(bash(`echo '${many}'`), "none");
+		assert.equal(bash(`ls ${many}; agx identity export`), "deny");
+	});
+
+	it("asks when it runs out of time", () => {
+		// A deadline already past stands in for a command that takes too long.
+		const late = { deadline: 0 };
+		assert.equal(decideCommand("agx whoami", "draft", late)?.decision, "ask");
+		assert.equal(
+			decideCommand("cat ~/.claude/settings.json", "draft", late)?.decision,
+			"ask",
+		);
+		assert.equal(decideCommand("npm test", "draft", late), null);
+		assert.equal(decideCommand("agx whoami", "draft"), null);
+	});
+
+	it("reads a word that holds itself only once", () => {
+		for (const command of [
+			'node "$(command -v agx)" whoami',
+			'node "$(command -v agx)" login --json --no-wait',
+			'"$(npm bin -g)/agx" whoami; "$(npm bin -g)/agx" org list',
+		]) {
+			assert.equal(bash(command), "none", command);
+		}
+	});
+
+	it("decides a very long command line well inside the hook's timeout", () => {
+		for (const command of [
+			`ls ${"agx ".repeat(50000)}`,
+			`run-all '${"agx ".repeat(50000)}'`,
+			`ls ${"'agx x' ".repeat(50000)}`,
+			"$(agx whoami) ".repeat(50000),
+			`${":;".repeat(100000)}agx whoami`,
+			`export {${"{".repeat(50000)},x`,
+			`export {${"junk,".repeat(50000)}AGX_}HOME=/tmp/x`,
+			`node -e '${"mi ".repeat(50000)}(env:'`,
+		]) {
+			const started = Date.now();
+			bash(command);
+			const elapsed = Date.now() - started;
+			assert.ok(
+				elapsed < 5000,
+				`${command.slice(0, 40)}… took ${elapsed} ms`,
+			);
+		}
+	});
+});
+
+describe("an agx profile name that is a path", () => {
+	// agx keeps a profile's files in <its directory>/profiles/<name> and takes
+	// the name as given (agx 0.4.0), so `..` in it leads out of that
+	// directory: the pending login, device code included, would land where
+	// Claude could read it.
+	it("denies a name that isn't plain", () => {
+		for (const command of [
+			"agx -p ../../../../tmp/x login --json --no-wait",
+			"agx --profile ../../../../tmp/x login --json --no-wait",
+			"agx --profile=../../x login",
+			"agx login --json --no-wait -p ../../../../tmp/x",
+			"agx -p../../x whoami",
+			"agx -p .. identity new",
+			"agx -p a/b identity show",
+			"agx -p 'my profile' whoami",
+			"agx -p ~/x login",
+			"AGX_PROFILE=../../../../tmp/x agx login --json --no-wait",
+			"export AGX_PROFILE=../../x; agx login",
+			"env AGX_PROFILE=../../x agx login",
+			"agx config use ../../../../tmp/x",
+			"npx -y @nostr-agx/cli -p ../../x login",
+			'node "$(command -v agx)" --profile ../../x login',
+			"bash -c 'agx -p ../../x login'",
+			"ssh host 'AGX_PROFILE=../../x agx login'",
+		]) {
+			assert.equal(bash(command), "deny", command);
+			assert.equal(bash(command, "claude-sends"), "deny", command);
+		}
+		for (const command of [
+			"agx -p ..\\..\\x login",
+			"$env:AGX_PROFILE = '..\\..\\x'; agx login",
+		]) {
+			assert.equal(tool("PowerShell", { command }), "deny", command);
+		}
+		const verdict = verdictOf("agx -p ../../x login");
+		assert.match(verdict.reason, /plain profile name/);
+		assert.match(verdict.reason, /pending `agx login`/);
+	});
+
+	it("asks for a name it can't read", () => {
+		for (const command of [
+			'agx -p "$PROFILE" login',
+			"agx --profile=$(cat name.txt) whoami",
+			"read AGX_PROFILE < name.txt; export AGX_PROFILE; agx login",
+			"export AGX_PROFILE",
+			"set -a; sysread AGX_PROFILE < name.txt; agx login",
+			`python3 -c 'import os; os.environ["AGX_PROFILE"]="../../x"; os.execvp("agx", ["agx", "login"])'`,
+		]) {
+			assert.equal(bash(command), "ask", command);
+		}
+		assert.equal(
+			tool("PowerShell", {
+				command:
+					"[Environment]::SetEnvironmentVariable('AGX_PROFILE', '..\\..\\x'); agx login",
+			}),
+			"ask",
+		);
+		assert.match(verdictOf('agx -p "$PROFILE" login').reason, /can't read/);
+	});
+
+	it("leaves a plain profile name alone", () => {
+		for (const command of [
+			"agx -p work login --json --no-wait",
+			"agx -pwork whoami",
+			"agx --profile settings-key whoami",
+			"agx --profile=acme org list",
+			"agx -p work.v2 identity show",
+			"AGX_PROFILE=work agx whoami",
+			"export AGX_PROFILE=work && agx whoami",
+			"unset AGX_PROFILE",
+			// npx's own -p names a package, not a profile.
+			"npx -p @nostr-agx/cli agx login",
+		]) {
+			assert.equal(bash(command), "none", command);
+		}
+	});
+});
+
 describe("a shell startup file is a command line", () => {
 	// What is written there runs in every later shell, Claude Code's included.
 	it("reads a heredoc written to a startup file as shell", () => {
@@ -1758,6 +2094,66 @@ describe("a shell startup file is a command line", () => {
 		]) {
 			assert.equal(bash(command), decision, command);
 		}
+	});
+
+	it("reads what echo, printf, tee and sed put there", () => {
+		for (const [command, decision] of [
+			["echo 'read AGX_HOME < /tmp/h' >> ~/.zshenv", "deny"],
+			["echo 'export AGX_HOME' >> ~/.zshenv", "deny"],
+			["printf '%s\\n' 'read AGX_HOME < /tmp/h' 'export AGX_HOME' >> ~/.zshenv", "deny"],
+			["printf 'export %s=%s\\n' AGX_HOME /tmp/x >> ~/.zshenv", "deny"],
+			["echo 'set -gx AGX_API_KEY x' >> ~/.config/fish/config.fish", "deny"],
+			["echo 'read AGX_HOME < /tmp/h' | tee -a ~/.zshenv", "deny"],
+			["cat <<'EOF' | tee -a ~/.zshenv\nread AGX_HOME < /tmp/h\nEOF", "deny"],
+			// The guard can't parse sed's script: naming the variable asks.
+			["sed -i '' '1i read AGX_HOME < /tmp/h' ~/.zshenv", "ask"],
+			["echo 'export PATH=\"$HOME/.local/bin:$PATH\"' >> ~/.zshrc", "none"],
+			["echo 'eval \"$(direnv hook zsh)\"' >> ~/.zshrc", "none"],
+			["printf 'alias ll=\"ls -la\"\\n' >> ~/.zshrc", "none"],
+			["sed -i '' 's/foo/bar/' ~/.zshrc", "none"],
+			["grep -n AGX_HOME ~/.zshrc", "none"],
+			["cat ~/.zshrc", "none"],
+		]) {
+			assert.equal(bash(command), decision, command);
+		}
+	});
+
+	it("knows csh, nushell, systemd and X session startup files too", () => {
+		for (const [command, decision] of [
+			["cat >> ~/.cshrc <<'EOF'\nsetenv AGX_HOME /tmp/x\nEOF", "deny"],
+			["echo 'setenv AGX_HOME /tmp/x' >> ~/.tcshrc", "deny"],
+			["cat >> ~/.bash_aliases <<EOF\nexport AGX_API_KEY=x\nEOF", "deny"],
+			["cat >> ~/.xprofile <<EOF\nexport AGX_HOME=/tmp/x\nEOF", "deny"],
+			["cat >> ~/.config/environment.d/agx.conf <<EOF\nAGX_HOME=/tmp/x\nEOF", "deny"],
+			[`cat >> ~/.config/nushell/env.nu <<'EOF'\n$env.AGX_API_URL = "${EVIL}"\nEOF`, "ask"],
+			["cat >> ~/.cshrc <<'EOF'\nsetenv EDITOR vim\nEOF", "none"],
+		]) {
+			assert.equal(bash(command), decision, command);
+		}
+	});
+
+	it("checks what an MCP file tool writes into a startup file", () => {
+		const zshenv = `${homedir()}/.zshenv`;
+		assert.equal(
+			tool("mcp__fs__write_file", { path: zshenv, content: "export AGX_HOME=/tmp/x\n" }),
+			"deny",
+		);
+		assert.equal(
+			tool("mcp__fs__edit_file", {
+				path: zshenv,
+				edits: [{ oldText: "# end", newText: `export AGX_API_URL=${EVIL}` }],
+			}),
+			"ask",
+		);
+		assert.equal(
+			tool("mcp__fs__write_file", { path: zshenv, content: 'export PATH="$HOME/bin:$PATH"\n' }),
+			"none",
+		);
+		assert.equal(tool("mcp__fs__read_file", { path: zshenv }), "none");
+		assert.equal(
+			tool("mcp__fs__write_file", { path: "/work/notes.md", content: "export AGX_HOME=/tmp/x\n" }),
+			"none",
+		);
 	});
 
 	it("checks what Write and Edit put into a startup file", () => {
@@ -1811,6 +2207,33 @@ describe("agx run after loading variables the guard can't read asks", () => {
 			"dotenv -e /tmp/e -- agx login",
 			'node --env-file=/tmp/e "$(command -v agx)" login',
 			"bash -c 'source /tmp/e && agx whoami'",
+			// A loader behind a package runner, or one that reads a directory.
+			"npx dotenv-cli -e /tmp/e -- agx login",
+			"pnpm exec dotenv -e /tmp/e -- agx login",
+			"yarn env-cmd -f /tmp/e agx login",
+			"envdir /tmp/d agx login",
+			"xargs -I{} env {} agx login < /tmp/e",
+			"deno run -A --env-file=/tmp/e npm:@nostr-agx/cli login",
+			// A file a shell or node reads before the command.
+			"BASH_ENV=/tmp/e bash -c 'agx login'",
+			"ENV=/tmp/e sh -ic 'agx login'",
+			"ZDOTDIR=/tmp/z zsh -c 'agx login'",
+			"XDG_CONFIG_HOME=/tmp/z fish -c 'agx login'",
+			"bash --rcfile /tmp/e -ic 'agx login'",
+			"bash --init-file /tmp/e -ic 'agx login'",
+			"NODE_OPTIONS=--env-file=/tmp/e agx login",
+			"export NODE_OPTIONS='--require /tmp/setenv.cjs'; agx login",
+			'node --require /tmp/setenv.cjs "$(command -v agx)" login',
+			'node --import /tmp/setenv.mjs "$(command -v agx)" login',
+			// A string the shell itself runs.
+			"trap '. /tmp/e' DEBUG; agx login",
+			"emulate sh -c '. /tmp/e'; agx login",
+			// A variable whose name is computed.
+			'part=_HOME; read "AGX$part" < /tmp/h; export "AGX$part"; agx login',
+			'set -a; part=_HOME; printf -v "AGX$part" %s /tmp/x; agx login',
+			'set -a; while IFS== read -r k v; do printf -v "$k" %s "$v"; done < /tmp/e; agx login',
+			// biome-ignore lint/suspicious/noTemplateCurlyInString: shell syntax, not a template
+			": ${(P)name::=/tmp/x}; agx login",
 		]) {
 			assert.equal(bash(command), "ask", command);
 			assert.equal(bash(command, "claude-sends"), "ask", command);
@@ -1821,13 +2244,52 @@ describe("agx run after loading variables the guard can't read asks", () => {
 		);
 	});
 
+	it("asks in PowerShell too", () => {
+		for (const command of [
+			". .\\env.ps1; agx login",
+			"Import-Module .\\env.psm1; agx login",
+			'$n = "AGX_" + "HOME"; [Environment]::SetEnvironmentVariable($n, "C:\\x"); agx login',
+			"[Environment]::SetEnvironmentVariable(('AGX_' + 'HOME'), 'C:\\x'); agx login",
+			'Get-Content .env | ForEach-Object { $k, $v = $_ -split "=", 2; Set-Item "Env:$k" $v }; agx login',
+			"Set-Item (\"Env:AGX_\" + \"HOME\") 'C:\\x'; agx login",
+			"New-Item -Path Env: -Name $k -Value $v; agx login",
+			"iex ('$env:AGX_' + 'API_URL = 1'); agx login",
+			"Invoke-Expression $setup; agx login",
+		]) {
+			assert.equal(tool("PowerShell", { command }), "ask", command);
+		}
+	});
+
 	it("leaves loading alone when agx doesn't run", () => {
 		for (const command of [
 			"source .venv/bin/activate && pytest",
 			"export $(grep -v '^#' .env | xargs) && npm start",
 			"node --env-file=.env server.js",
+			"npx dotenv-cli -e .env -- npm start",
+			"NODE_OPTIONS=--max-old-space-size=4096 npm run build",
+			"node -r ts-node/register script.ts",
+			"BASH_ENV=~/.bashrc bash -c 'echo hi'",
 		]) {
 			assert.equal(bash(command), "none", command);
+		}
+	});
+
+	it("leaves agx alone next to a command that only installs a loader", () => {
+		for (const command of [
+			"npm install dotenv && agx whoami",
+			"pnpm add -D dotenv-cli env-cmd && agx whoami",
+			"brew install direnv && agx --version",
+			"read -r line < file.txt; agx whoami",
+			"trap 'rm -f /tmp/t' EXIT; agx whoami",
+		]) {
+			assert.equal(bash(command), "none", command);
+		}
+		for (const command of [
+			"Set-Item Env:FOO bar; agx whoami",
+			"[Environment]::SetEnvironmentVariable('FOO', 'bar'); agx whoami",
+			"Import-Module posh-git",
+		]) {
+			assert.equal(tool("PowerShell", { command }), "none", command);
 		}
 	});
 });
@@ -2236,6 +2698,7 @@ describe("the login skill", () => {
 
 	it("keeps Claude off the key and the confirmation links", () => {
 		assert.match(skill, /Never print or inspect `AGX_API_KEY`/);
+		assert.match(skill, /a plain name such as `work`, never a path/);
 		assert.match(skill, /Never open that link, or click Publish/);
 		const listAgent = readFileSync(
 			join(HERE, "..", "plugins", "elladex", "skills", "list-agent", "SKILL.md"),
@@ -2332,6 +2795,15 @@ describe("known gaps in the login rules (documented, not caught)", () => {
 		);
 	});
 
+	it("a profile that is already agx's current one, or the shell's", () => {
+		// Like the server: the hook sees the command, not agx's config.json
+		// or the AGX_PROFILE the shell started with.
+		assert.equal(
+			bash("agx login", "draft", { AGX_PROFILE: "../../x" }),
+			"none",
+		);
+	});
+
 	it("a variable set in one call of a terminal that keeps its shell", () => {
 		// The Bash tool starts each call fresh; an MCP terminal may not, so
 		// HOME set in one call and agx run in the next aren't connected.
@@ -2348,6 +2820,40 @@ describe("known gaps in the login rules (documented, not caught)", () => {
 
 	it("variables loaded by a program it doesn't know", () => {
 		assert.equal(bash("doppler run -- agx login"), "none");
+		assert.equal(bash("foreman run agx login"), "none");
+	});
+
+	it("a command that sets a variable with words built at run time", () => {
+		for (const command of [
+			// E holds `env AGX_HOME=/tmp/x`, set in an earlier call.
+			"$E agx login",
+			"HOME=/tmp/x sh -c \"$(printf 'a%s login' gx)\"",
+			"HOME=/tmp/x make agx-login",
+		]) {
+			assert.equal(bash(command), "none", command);
+		}
+	});
+
+	it("a dotenv file that a later command loads without being asked", () => {
+		// bun reads `.env` on its own. A load the command spells out
+		// (`--env-file`, dotenv, `source`) asks.
+		assert.equal(
+			tool("Write", { file_path: "/work/.env", content: "AGX_HOME=/tmp/x\n" }),
+			"none",
+		);
+		assert.equal(bash("bunx @nostr-agx/cli login"), "none");
+	});
+
+	it("a startup file copied into place, or one that sources another file", () => {
+		assert.equal(bash("cp /tmp/e ~/.zshenv"), "none");
+		assert.equal(bash("echo 'source /tmp/e' >> ~/.zshenv"), "none");
+	});
+
+	it("xonsh's own way to set a server", () => {
+		assert.equal(
+			bash(`xonsh -c '$AGX_API_URL = "${EVIL}"; agx login'`),
+			"none",
+		);
 	});
 
 	it("the whole environment printed with no filter", () => {
@@ -2364,9 +2870,9 @@ describe("known gaps in the login rules (documented, not caught)", () => {
 			assert.equal(bash(command), "none", command);
 		}
 		assert.equal(tool("PowerShell", { command: "$env:AGX_API_KEY" }), "none");
-		assert.equal(
-			bash("python3 -c 'import os; print(os.environ[\"AGX_API_KEY\"])'"),
-			"none",
-		);
+		// A script file that reads its own environment. A script on the
+		// command line that names the key asks (see "a script in another
+		// language").
+		assert.equal(bash("python3 print_env.py"), "none");
 	});
 });
