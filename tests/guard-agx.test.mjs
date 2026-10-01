@@ -2036,7 +2036,7 @@ describe("the sign-in approval page is the user's", () => {
 	it("leaves other pages alone", () => {
 		for (const url of [
 			"https://app.ellaworks.ai/elladex",
-			"https://app.ellaworks.ai/elladex/listings/l_7?org=acme",
+			"https://app.ellaworks.ai/elladex/listings",
 			"https://app.ellaworks.ai/auth/device-help",
 			"https://app.ellaworks.ai/auth/login?redirectTo=%2Felladex",
 			"https://github.com/ellavox-ai/elacity-mega/tree/main/apps/web/app/auth/device",
@@ -2054,6 +2054,129 @@ describe("the sign-in approval page is the user's", () => {
 			}),
 			"none",
 		);
+	});
+});
+
+describe("a listing's manage page asks: only a human admin clicks Publish", () => {
+	const PAGE = "https://app.ellaworks.ai/elladex/listings/l_7?org=acme";
+
+	it("asks before a browser tool opens /elladex/listings/<id>", () => {
+		for (const [name, url] of [
+			["mcp__Claude_Browser__navigate", PAGE],
+			["mcp__claude-in-chrome__navigate", "app.ellaworks.ai/elladex/listings/l_7"],
+			[
+				"mcp__Control_Chrome__open_url",
+				"https://app.ellaworks.ai/elladex/listings/l_7#domain-handle",
+			],
+			["mcp__playwright__browser_navigate", "https://APP.ellaworks.ai/Elladex/Listings/L_7"],
+			["mcp__x__open", "https://app.ellaworks.ai/en/elladex/listings/l_7/"],
+			["mcp__x__open", "https://stage.ellaworks.ai/elladex/listings/l_7"],
+			["mcp__Claude_Browser__preview_start", "http://localhost:3000/elladex/listings/l_7"],
+			["mcp__x__open", "/elladex/listings/l_7"],
+		]) {
+			assert.equal(tool(name, { url }), "ask", `${name} ${url}`);
+		}
+		// The send mode doesn't change it.
+		assert.equal(
+			tool(
+				"mcp__Claude_Browser__navigate",
+				{ url: PAGE },
+				{ CLAUDE_PLUGIN_OPTION_SEND_MODE: "claude-sends" },
+			),
+			"ask",
+		);
+	});
+
+	it("says only a human organization admin may click Publish", () => {
+		const verdict = decide(
+			{ tool_name: "mcp__Claude_Browser__navigate", tool_input: { url: PAGE } },
+			{},
+		);
+		assert.equal(verdict.decision, "ask");
+		assert.match(verdict.reason, /only a human organization admin may click Publish/);
+		assert.match(verdict.reason, /\/elladex\/listings\//);
+	});
+
+	it("asks for repeated slashes and a sign-in page that redirects there", () => {
+		for (const url of [
+			"https://app.ellaworks.ai//elladex//listings/l_7",
+			"https://app.ellaworks.ai/elladex\\listings\\l_7",
+			"https://app.ellaworks.ai/elladex%2Flistings%2Fl_7",
+			"https://app.ellaworks.ai/auth/login?redirectTo=/elladex/listings/l_7",
+			"https://app.ellaworks.ai/auth/login?redirectTo=%2Felladex%2Flistings%2Fl_7",
+			"https://app.ellaworks.ai/auth/login?redirectTo=https%3A%2F%2Fapp.ellaworks.ai%2Felladex%2Flistings%2Fl_7",
+		]) {
+			assert.equal(tool("mcp__Claude_Browser__navigate", { url }), "ask", url);
+		}
+	});
+
+	it("asks inside a batch of browser actions", () => {
+		for (const name of [
+			"mcp__Claude_Browser__browser_batch",
+			"mcp__claude-in-chrome__browser_batch",
+		]) {
+			assert.equal(
+				tool(name, {
+					actions: [
+						{ name: "computer", input: { action: "screenshot" } },
+						{ name: "navigate", input: { url: PAGE } },
+					],
+				}),
+				"ask",
+				name,
+			);
+		}
+	});
+
+	it("still denies when the same batch also opens the approval page", () => {
+		assert.equal(
+			tool("mcp__Claude_Browser__browser_batch", {
+				actions: [
+					{ name: "navigate", input: { url: PAGE } },
+					{
+						name: "navigate",
+						input: { url: "https://app.ellaworks.ai/auth/device" },
+					},
+				],
+			}),
+			"deny",
+		);
+	});
+
+	it("leaves the list of listings, public agent pages and source code alone", () => {
+		for (const url of [
+			"https://app.ellaworks.ai/elladex/listings",
+			"https://app.ellaworks.ai/elladex/listings/",
+			"https://app.ellaworks.ai/elladex/listings?org=acme",
+			"https://app.ellaworks.ai/elladex/submit",
+			`https://app.ellaworks.ai/elladex/agents/${NPUB}`,
+			"https://app.ellaworks.ai/auth/login?redirectTo=%2Felladex%2Flistings",
+			"https://github.com/ellavox-ai/elacity-mega/tree/main/apps/web/app/(elladex)/elladex/listings/[listingId]",
+		]) {
+			assert.equal(tool("mcp__Claude_Browser__navigate", { url }), "none", url);
+		}
+	});
+
+	it("doesn't stop Bash or a file tool that only mentions the page", () => {
+		assert.equal(bash(`echo ${PAGE}`), "none");
+		assert.equal(bash(`grep -rn "/elladex/listings/" docs`), "none");
+		assert.equal(tool("Read", { file_path: "/work/elladex/listings/l_7.md" }), "none");
+	});
+
+	it("prints an ask from the hook process", () => {
+		const result = spawnSync(process.execPath, [GUARD], {
+			input: JSON.stringify({
+				hook_event_name: "PreToolUse",
+				tool_name: "mcp__Claude_Browser__navigate",
+				tool_input: { url: PAGE },
+			}),
+			env: { PATH: process.env.PATH, HOME: homedir() },
+			encoding: "utf8",
+		});
+		assert.equal(result.status, 0);
+		const out = JSON.parse(result.stdout).hookSpecificOutput;
+		assert.equal(out.permissionDecision, "ask");
+		assert.match(out.permissionDecisionReason, /click Publish/);
 	});
 });
 
@@ -2153,6 +2276,24 @@ describe("known gaps in the login rules (documented, not caught)", () => {
 		assert.equal(
 			tool("mcp__claude-in-chrome__javascript_tool", {
 				text: "location.href = 'https://app.ellaworks.ai/auth/device'",
+			}),
+			"none",
+		);
+	});
+
+	it("a click on Publish once a listing's manage page is open", () => {
+		// The guard asks before a browser tool opens the page; it can't tell
+		// which button a click on an open page lands on.
+		assert.equal(
+			tool("mcp__Claude_Browser__computer", {
+				action: "left_click",
+				coordinate: [640, 360],
+			}),
+			"none",
+		);
+		assert.equal(
+			tool("mcp__claude-in-chrome__javascript_tool", {
+				text: "location.href = '/elladex/listings/l_7'",
 			}),
 			"none",
 		);

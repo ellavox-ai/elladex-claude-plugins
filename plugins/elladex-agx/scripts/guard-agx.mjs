@@ -7,12 +7,12 @@
  * (hooks/hooks.json): an MCP tool's `command`, `cmd` or `script` input is
  * checked like Bash (the Desktop terminal tool runs commands in the user's own
  * shell), its path inputs like Read, and its `url` input (a browser tool's)
- * against the sign-in approval page, at any depth (a `browser_batch` action's
- * `input.url` too). It reads the hook input as JSON on stdin, and from the
- * environment only the plugin's `send_mode` option
- * (CLAUDE_PLUGIN_OPTION_SEND_MODE) and AGX_HOME (see `guardEnv`). It prints a
- * `hookSpecificOutput` decision of deny or ask, or nothing at all when it has
- * no opinion; it never approves a tool call:
+ * against the sign-in approval page and a listing's manage page, at any depth
+ * (a `browser_batch` action's `input.url` too). It reads the hook input as
+ * JSON on stdin, and from the environment only the plugin's `send_mode`
+ * option (CLAUDE_PLUGIN_OPTION_SEND_MODE) and AGX_HOME (see `guardEnv`). It
+ * prints a `hookSpecificOutput` decision of deny or ask, or nothing at all
+ * when it has no opinion; it never approves a tool call:
  *
  *   deny   `agx identity export`, `agx config show --reveal`, any tool call that
  *          touches ~/.agx or $AGX_HOME (the secret key, the allowlist and the
@@ -54,7 +54,10 @@
  *          except `list`, agx run in a command line that loads variables it
  *          can't read (`source f`, `env $(cat f)`, `export $(…)`, `eval`,
  *          dotenv, `--env-file`), a Grep with no path whose working directory
- *          contains ~/.agx, and agx send/request text in a form it can't parse.
+ *          contains ~/.agx, agx send/request text in a form it can't parse,
+ *          and an MCP tool (a browser) opening a listing's manage page
+ *          `/elladex/listings/<id>`, which has the Publish button only a
+ *          human organization admin may click.
  *   none   everything else, including `agx login` against the default server,
  *          `agx whoami`, `agx logout` and `agx org list`: Claude Code's own
  *          permission rules decide.
@@ -2094,10 +2097,13 @@ function setEnvironmentVariableVerdicts(text) {
 	return out;
 }
 
-// ------------------------------------------ the sign-in approval page
+// ------------------------- the sign-in approval page and listing pages
 
 const DEVICE_PAGE_REASON =
 	"elladex-agx: this opens the Ellaworks sign-in approval page (/auth/device) with a tool Claude drives. Only a person approves an `agx login`: give the user the link and code that your own `agx login` printed, and let them open it in their own browser. Claude never opens, fills in or clicks that page.";
+
+const LISTING_PAGE_REASON =
+	"elladex-agx: this opens an Elladex listing's manage page (/elladex/listings/…) with a tool Claude drives. That page has the Publish button, and only a human organization admin may click Publish: making a listing public is the admin's confirmation, in their own browser. Approve only if you want Claude to look at the page; it must not click Publish, or edit, de-list or delete the listing. To publish, open the link yourself.";
 
 /** MCP tool inputs that hold a URL to open (browser navigation tools). */
 const URL_KEYS = new Set(["url", "uri", "href"]);
@@ -2113,9 +2119,33 @@ const URL_KEYS = new Set(["url", "uri", "href"]);
  * `/` is a path.
  *
  * @param {string} value
+ */
+function isDeviceApprovalUrl(value) {
+	return reachesPath(value, isDevicePath);
+}
+
+/**
+ * True for an Elladex listing's manage page, `/elladex/listings/<id>` (with
+ * an optional locale prefix, and anything under it), on any host, read the
+ * same way as the approval page: directly, with repeated slashes, or as a
+ * sign-in page's redirect (`/auth/login?redirectTo=/elladex/listings/l_7`).
+ * The list of your listings, `/elladex/listings`, has no Publish button.
+ *
+ * @param {string} value
+ */
+function isListingManageUrl(value) {
+	return reachesPath(value, isListingManagePath);
+}
+
+/**
+ * True when `value`, read as a URL or a path, has a path `matches` accepts,
+ * or carries one in its query, up to three redirects deep.
+ *
+ * @param {string} value
+ * @param {(path: string) => boolean} matches
  * @param {number} [depth] how many query values deep this is
  */
-function isDeviceApprovalUrl(value, depth = 0) {
+function reachesPath(value, matches, depth = 0) {
 	const v = value.trim();
 	/** @type {URL | null} */
 	let url = null;
@@ -2139,30 +2169,45 @@ function isDeviceApprovalUrl(value, depth = 0) {
 	// A value starting with `//` parses as a host; check its text as a path
 	// too, failing closed.
 	const paths = v.startsWith("/") ? [path, decoded, raw] : [path, decoded];
-	if (paths.some(isDevicePath)) {
+	if (paths.some(matches)) {
 		return true;
 	}
 	if (!url || depth >= 3) {
 		return false;
 	}
 	for (const [, inner] of url.searchParams) {
-		if (inner && isDeviceApprovalUrl(inner, depth + 1)) {
+		if (inner && reachesPath(inner, matches, depth + 1)) {
 			return true;
 		}
 	}
 	return false;
 }
 
-/** @param {string} path */
-function isDevicePath(path) {
-	const clean = path
+/** A path with `\` as `/`, repeated slashes as one, no trailing slash, lower case. */
+function cleanPath(path) {
+	return path
 		.replace(/\\/g, "/")
 		.replace(/\/{2,}/g, "/")
 		.replace(/\/+$/, "")
 		.toLowerCase();
+}
+
+/** An optional locale segment before a page's path (`/en`, `/pt-br`). */
+const LOCALE_PREFIX = "(?:\\/[a-z]{2}(?:-[a-z0-9]{2,4})?)?";
+
+/** @param {string} path */
+function isDevicePath(path) {
+	const clean = cleanPath(path);
 	return (
-		/^(?:\/[a-z]{2}(?:-[a-z0-9]{2,4})?)?\/auth\/device$/.test(clean) ||
+		new RegExp(`^${LOCALE_PREFIX}\\/auth\\/device$`).test(clean) ||
 		/^\/api\/auth\/device(?:\/|$)/.test(clean)
+	);
+}
+
+/** @param {string} path */
+function isListingManagePath(path) {
+	return new RegExp(`^${LOCALE_PREFIX}\\/elladex\\/listings\\/[^/]+`).test(
+		cleanPath(path),
 	);
 }
 
@@ -2547,6 +2592,8 @@ export function decide(input, env) {
 					verdicts.push(deny(KEY_FILES_REASON));
 				} else if (URL_KEYS.has(key) && isDeviceApprovalUrl(value)) {
 					verdicts.push(deny(DEVICE_PAGE_REASON));
+				} else if (URL_KEYS.has(key) && isListingManageUrl(value)) {
+					verdicts.push(ask(LISTING_PAGE_REASON));
 				}
 			}
 			return strongest(verdicts);
