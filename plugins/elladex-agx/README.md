@@ -31,7 +31,7 @@ The first three are commands you run; the rest are things to ask Claude once the
 
 ## Who sends messages
 
-The `send_mode` setting ("Who sends messages") has two values:
+The `send_mode` setting ("Who sends messages") is a text field that takes one of two values:
 
 | Value | What happens |
 | --- | --- |

@@ -1,7 +1,8 @@
 /**
- * Tests for the elladex-agx PreToolUse guard. Run:
- *   node --test plugins/elladex-agx/scripts/*.test.mjs
- * (Node 24 rejects a bare directory argument, hence the glob.)
+ * Tests for the elladex-agx PreToolUse guard. Run from the repository root:
+ *   node --test tests/*.test.mjs
+ * (Node 24 rejects a bare directory argument, hence the glob.) They live
+ * outside the plugin folder so they don't ship with it.
  */
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
@@ -10,10 +11,16 @@ import { homedir, tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
-import { decide, decideCommand, render, sendMode } from "./guard-agx.mjs";
+import {
+	decide,
+	decideCommand,
+	render,
+	sendMode,
+} from "../plugins/elladex-agx/scripts/guard-agx.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const GUARD = join(HERE, "guard-agx.mjs");
+const PLUGIN = join(HERE, "..", "plugins", "elladex-agx");
+const GUARD = join(PLUGIN, "scripts", "guard-agx.mjs");
 const SAFE_SERVE =
 	"agx serve --no-reply --no-tasks --allowed-only --full-ids --no-color";
 const NPUB = "npub1n0m8c4qn3434zy2q7nxj7v029pqyyfjfg0af98yfll6ksnvq3mps2ynyfz";
@@ -935,10 +942,21 @@ describe("hook process", () => {
 	it("render() emits nothing for no decision", () => {
 		assert.equal(render(null), "");
 	});
+
+	it("render() never grants permission", () => {
+		const decisionOf = (decision) =>
+			JSON.parse(render({ decision, reason: "r" })).hookSpecificOutput
+				.permissionDecision;
+		assert.equal(decisionOf("deny"), "deny");
+		assert.equal(decisionOf("ask"), "ask");
+		// Anything else, including "allow", becomes a prompt.
+		assert.equal(decisionOf("allow"), "ask");
+		assert.equal(decisionOf("bogus"), "ask");
+	});
 });
 
 describe("turning the guard off is the user's", () => {
-	const ROOT = join(HERE, "..");
+	const ROOT = PLUGIN;
 	const CACHE = `${homedir()}/.claude/plugins/cache/ellaworks/elladex-agx/0.2.1`;
 
 	for (const command of [

@@ -19,7 +19,7 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: ${{ matrix.node }}
-      - run: node --test plugins/elladex-agx/scripts/*.test.mjs
+      - run: node --test tests/*.test.mjs
 
   validate:
     runs-on: ubuntu-latest

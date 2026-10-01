@@ -1815,7 +1815,11 @@ export function sendMode(value) {
 		: DRAFT;
 }
 
-/** The JSON Claude Code expects on stdout, or "" for no decision. */
+/**
+ * The JSON Claude Code expects on stdout, or "" for no decision. The guard
+ * only ever denies or asks; it never grants permission, so anything that
+ * isn't a deny becomes a prompt.
+ */
 export function render(verdict) {
 	if (!verdict) {
 		return "";
@@ -1823,7 +1827,7 @@ export function render(verdict) {
 	return JSON.stringify({
 		hookSpecificOutput: {
 			hookEventName: "PreToolUse",
-			permissionDecision: verdict.decision,
+			permissionDecision: verdict.decision === "deny" ? "deny" : "ask",
 			permissionDecisionReason: verdict.reason,
 		},
 	});
