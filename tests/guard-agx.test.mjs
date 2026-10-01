@@ -1677,6 +1677,36 @@ describe("the sign-in approval page is the user's", () => {
 	});
 });
 
+describe("the login skill", () => {
+	const skill = readFileSync(
+		join(PLUGIN, "skills", "login", "SKILL.md"),
+		"utf8",
+	);
+	const frontmatter = skill.split(/^---$/m)[1] ?? "";
+
+	it("is model-invocable, named login, with the argument hint", () => {
+		assert.match(frontmatter, /^name: login$/m);
+		assert.match(frontmatter, /^description: .*log in/im);
+		assert.match(
+			frontmatter,
+			/^argument-hint: "\[--org <slug> \| --new-org <name>\]"$/m,
+		);
+		assert.doesNotMatch(frontmatter, /disable-model-invocation/);
+	});
+
+	it("runs only the commands the guard lets through without a prompt", () => {
+		for (const command of [
+			"agx --version",
+			"agx whoami --json",
+			"agx login --json --no-wait",
+			"agx login --json --no-wait --org acme",
+			"agx whoami",
+		]) {
+			assert.equal(bash(command), "none", command);
+		}
+	});
+});
+
 describe("hook process: agx login", () => {
 	function run(command) {
 		return spawnSync(process.execPath, [GUARD], {
