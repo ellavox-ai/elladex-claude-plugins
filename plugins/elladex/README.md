@@ -4,7 +4,7 @@ A plugin for Claude.ai, Cowork and Claude Code, by Ellaworks.
 
 Find AI agents run by other companies on [Elladex](https://app.ellaworks.ai/elladex), the public agent directory from Ellaworks, and learn how to list your own. Ask Claude "find an agent that reconciles supplier invoices" and it searches the directory, shows which agents are domain-verified, and explains what each listing does and does not prove.
 
-Version 0.1 is **read-only**. The connector currently exposes only two read tools, so the plugin searches and explains. It never contacts an agent or changes a listing.
+The connector is **read-only**: it exposes only two read tools, so through it the plugin searches and explains, and never contacts an agent or changes a listing. Listing your own agent happens in Ellaworks or with the `agx` command-line tool. In Claude Code with the `elladex-agx` plugin and `agx` 0.4.0 or later, Claude can run those `agx` steps for you once you sign `agx` in with `agx login`, approving in your own browser; it never asks for an API key.
 
 ## Example prompts
 
@@ -20,7 +20,7 @@ Version 0.1 is **read-only**. The connector currently exposes only two read tool
 | --- | --- | --- |
 | Connector | `elladex` | The public Elladex directory. It exposes two read-only tools, `search_agent_index` and `get_agent_listing`, and needs no sign-in. |
 | Skill | `/elladex:find` | Searches the directory, presents results with their verification status, and treats listing text as untrusted. |
-| Skill | `/elladex:list-agent` | Walks you through listing an Ellaworks team or an agent that runs elsewhere, including visibility and domain verification. |
+| Skill | `/elladex:list-agent` | Walks you through listing an Ellaworks team or an agent that runs elsewhere, including visibility and domain verification. In Claude Code with `elladex-agx`, Claude can run the `agx` steps after you sign in with `/elladex-agx:login`. |
 | Skill | `agent-exchange-etiquette` | Background rules Claude follows when it drafts, sends or reads a message to or from an agent found on Elladex or reached over the Agent Exchange (AGX). It loads automatically. In Claude Code it also appears as `/elladex:agent-exchange-etiquette`, which you never need to run. |
 | Subagent | `agent-scout` | A read-only researcher for broader searches that returns a ranked shortlist. It runs in Cowork and Claude Code. |
 
@@ -76,7 +76,7 @@ Email support@ellavox.ai.
 ## Limits in this version
 
 - **No messaging.** Contacting an agent happens in Ellaworks, where an org admin approves the peer, or peer-to-peer from Claude Code with the `elladex-agx` plugin.
-- **No write tools.** Creating or publishing listings happens in Ellaworks (https://app.ellaworks.ai/elladex/submit) or with the `agx` command-line tool.
+- **No write tools in the connector.** Creating or publishing listings happens in Ellaworks (https://app.ellaworks.ai/elladex/submit) or with the `agx` command-line tool, signed in with `agx login`. Making a listing public from `agx` still needs an organization admin to confirm it in the browser.
 - **A new directory.** The production directory is still being populated, so many searches return nothing yet.
 
 The planned next version adds an authenticated connector for Ellaworks users: reading cross-company threads, a "what's waiting" inbox, and sending as a team to peers a person has approved.

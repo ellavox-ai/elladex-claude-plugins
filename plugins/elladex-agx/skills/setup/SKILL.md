@@ -12,8 +12,9 @@ This gives the user a Nostr keypair that the `agx` command-line tool keeps under
 
 ## Keys and trust settings
 
-- **Never read agx's files directly.** Don't open, `cat`, `grep` or copy anything under `~/.agx` or `$AGX_HOME`. The identity file holds the secret key. The plugin's guard hook blocks these reads; don't look for another way.
+- **Never read agx's files directly.** Don't open, `cat`, `grep` or copy anything under `~/.agx` or `$AGX_HOME`. The identity file holds the secret key, and `credentials.json` holds the API key from `agx login`. The plugin's guard hook blocks these reads; don't look for another way.
 - **Never handle the secret key.** Never run `agx identity export` or `agx identity import`, and never print, copy or paste a secret key (`nsec1…`) anywhere, including this chat. Nothing this plugin does needs the secret key to leave the machine, so don't offer a way to display it. Never pass `--reveal` to `agx config show`.
+- **Never handle an API key.** Messaging doesn't need one. Never run `agx config set apiKey`, never set `AGX_API_KEY` or `AGX_HOME` (or `HOME` for an agx command), never give agx a profile name that is a path, never print `AGX_API_KEY`, and never ask the user for a key. Signing agx in to Ellaworks, for listings, is `/elladex-agx:login`, and only when the user asks.
 - **Trust changes need the user.** Run `agx identity new`, `agx config set` and the allowlist commands only inside `/elladex-agx:setup` or `/elladex-agx:allow`, and only because the user asked in this conversation. Claude Code asks the user before each of them. Never run `agx identity new --force`, `agx identity sign`, `agx register` or `agx serve --advertise` from this skill.
 - **Never install anything yourself.** Installing or upgrading `agx` is the user's job, in their own terminal.
 
@@ -27,8 +28,9 @@ Then run `agx --version`.
 - **It prints `0.3.0` or later:** continue. Use `agx` in every step below.
 - **It prints an older version** (for example `0.2.0`): stop. That `agx` lacks the flags this plugin relies on (`--allowed-only`, `--full-ids`, `--no-tasks`). Ask the user to upgrade it in their own terminal, then run `/elladex-agx:setup` again:
   ```bash
-  npm install -g @nostr-agx/cli@^0.3.0
+  npm install -g @nostr-agx/cli@^0.4.0
   ```
+  That installs the current `agx`. Messaging needs only 0.3.0, so don't ask a user on 0.3.x to upgrade here; `agx login` (the `login` skill) is what needs 0.4.0.
 - **`command not found`:** stop, and ask the user to install it in their own terminal with the same command, then run `/elladex-agx:setup` again. It needs Node.js 20 or later.
 
 Don't run `npm install` yourself, and don't try `npx`, `pnpm` or a checkout path instead. If npm can't find `@nostr-agx/cli`, point the user to the Requirements section of the plugin README.
@@ -54,7 +56,7 @@ Then:
      - `PASS` ("connected and answered a REQ with EOSE"): usable.
      - `WARN` whose detail says reads need NIP-42 auth ("which this probe does not answer (real clients do)"): usable. The relay wants a sign-in that `agx send` and `agx serve` perform and the doctor's probe doesn't.
      - Any other `WARN` (no EOSE, or only a relay notice) or any `FAIL` (unreachable, refused the probe, closed the connection): not usable. Stop and tell the user, quoting the detail line. Ignore the doctor's suggestion to run `agx relay`; that starts a local test relay.
-   - **Every other line** (such as `api credentials`, `index`, `listing` or `nip-05`) concerns listing management with an Ellaworks API key, not messaging. Those lines usually fail here, and `agx doctor` then exits with an error. That's expected and doesn't affect messaging.
+   - **Every other line** (such as `api credentials`, `index`, `listing` or `nip-05`) concerns listing management, which needs agx signed in to Ellaworks (`/elladex-agx:login`), not messaging. Those lines usually fail here, and `agx doctor` then exits with an error. That's expected and doesn't affect messaging; don't sign in to fix them unless the user asks.
 3. A usable relay line shows the relay answers, not that it accepts gift-wrapped messages. `wss://relay.elladex.ai` does; for any other relay, the first message you exchange is the real test.
 
 ## 4. Tell the user what to share

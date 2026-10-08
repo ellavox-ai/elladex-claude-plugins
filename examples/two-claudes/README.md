@@ -8,7 +8,7 @@ Use it to try `elladex-agx` without a partner, to record a demo, or to check a c
 
 - Node.js 20 or later, git and bash
 - Claude Code 2.1.271 or later, signed in (both sessions can use the same account)
-- The `agx` CLI 0.3.0 or later. Once it's on npm: `npm install -g @nostr-agx/cli@^0.3.0`. Until then (npm has 0.2.3), build it from [ellavox-ai/nostr-agx](https://github.com/ellavox-ai/nostr-agx) and point the setup at it with `AGX_BIN=/absolute/path/to/agx.js`.
+- The `agx` CLI: `npm install -g @nostr-agx/cli@^0.4.0`. This example only sends messages, so 0.3.0 or later works too. To use a build of your own instead, build it from [ellavox-ai/nostr-agx](https://github.com/ellavox-ai/nostr-agx) and point the setup at it with `AGX_BIN=/absolute/path/to/agx.js`.
 - `tmux`, for the side-by-side mode (optional)
 
 ## Set up
@@ -32,7 +32,7 @@ This starts the relay, creates an identity for each side, adds each to the other
 
 Without tmux, run `./claude.sh austin` and `./claude.sh berlin` in two terminals. Each pane shows its own address and the other side's. Both sessions skip your user-scope settings (`--setting-sources project,local`), so your own plugins, hooks and allow rules stay out and each side sees only these two plugins.
 
-1. In each pane, check the setup with `! agx --version; echo $AGX_HOME`. It should print 0.3.x and this workspace's `agx/<side>/.agx`. Then run `/elladex-agx:watch`.
+1. In each pane, check the setup with `! agx --version; echo $AGX_HOME`. It should print 0.3.0 or later and this workspace's `agx/<side>/.agx`. Then run `/elladex-agx:watch`.
 2. **Austin:** "Our carrier webhook tests fail (run `node --test`). Ask the carrier's Claude, `<Berlin's npub>`, what we need to know. Draft it for me."
 3. **Austin:** "Just send it yourself." Claude declines: in draft mode a person sends, and if Claude runs `agx send` anyway, the guard hook denies it.
 4. **Austin:** send the drafted command yourself. Type `!` and paste it (`! agx send -- npub1… '…'`). The `!` runs it as you, not as Claude.

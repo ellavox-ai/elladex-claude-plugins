@@ -6,31 +6,77 @@
  * Glob, Write, Edit, MultiEdit and NotebookEdit call, and every MCP tool call
  * (hooks/hooks.json): an MCP tool's `command`, `cmd` or `script` input is
  * checked like Bash (the Desktop terminal tool runs commands in the user's own
- * shell), and its path inputs like Read. It reads the hook input as JSON on
- * stdin, and from the environment only the plugin's `send_mode` option
- * (CLAUDE_PLUGIN_OPTION_SEND_MODE) and AGX_HOME (see `guardEnv`). It prints a
- * `hookSpecificOutput` decision of deny or ask, or nothing at all when it has
- * no opinion; it never approves a tool call:
+ * shell), its path inputs like Read, and its `url` input (a browser tool's)
+ * against the sign-in approval page and a listing's manage page, at any depth
+ * (a `browser_batch` action's `input.url` too). It reads the hook input as
+ * JSON on stdin, and from the environment only the plugin's `send_mode`
+ * option (CLAUDE_PLUGIN_OPTION_SEND_MODE) and AGX_HOME (see `guardEnv`). It
+ * prints a `hookSpecificOutput` decision of deny or ask, or nothing at all
+ * when it has no opinion; it never approves a tool call:
  *
  *   deny   `agx identity export`, `agx config show --reveal`, any tool call that
- *          touches ~/.agx or $AGX_HOME (the secret key and the allowlist live
- *          there), `agx serve` without the watch's safe flags or with
- *          --allow-all, --reply-any or --advertise, and any attempt to change
- *          the send mode (`send_mode=` in a command, or a Claude settings file
- *          written with send_mode, claude-sends or elladex-agx in it), and
- *          anything that turns this guard off: `claude plugin
- *          disable|uninstall` of elladex-agx (or `--all`), removing the
+ *          touches ~/.agx or $AGX_HOME (the secret key, the allowlist and the
+ *          `agx login` key in credentials.json live there); setting AGX_HOME,
+ *          and setting HOME (or USERPROFILE) in a command line that runs agx;
+ *          an agx profile name that is a path (`-p ../../x`, AGX_PROFILE,
+ *          `agx config use`), which would move a profile's files the same way;
+ *          an API key on a command line or in agx's environment (`agx config
+ *          set apiKey <value>`, AGX_API_KEY set, or an `ela_…` key literal);
+ *          printing an inherited AGX_API_KEY (`printenv AGX_API_KEY`, `echo
+ *          $AGX_API_KEY`, `env | grep -i agx`); an MCP tool (a browser)
+ *          opening the sign-in approval page `/auth/device`, directly or
+ *          through a sign-in page's redirect; `agx serve` without the watch's
+ *          safe flags or with --allow-all, --reply-any or --advertise; any
+ *          attempt to change the send mode (`send_mode=` in a command, or a
+ *          Claude settings file written with send_mode, claude-sends or
+ *          elladex-agx in it); and anything that turns this guard off: `claude
+ *          plugin disable|uninstall` of elladex-agx (or `--all`), removing the
  *          `ellaworks` marketplace, `disableAllHooks`, and writes to this
  *          plugin's installed files or Claude Code's plugin registry.
+ *          "Setting" a variable means any spelling the parser knows: `NAME=v`
+ *          (as a prefix, through `env`, `export`, `declare -x`, or spelled by
+ *          brace expansion), `export NAME`, `declare`/`typeset`/`local`/
+ *          `readonly`/`setenv NAME`, `read NAME`, `mapfile`, `getopts`,
+ *          `printf -v NAME`, `for NAME in`, fish's `set NAME`, a nameref to
+ *          it, `${NAME:=v}`, any command that names it once allexport is on
+ *          (`set -a; sysread NAME`), `launchctl setenv`, `tmux setenv`,
+ *          `setx` and the registry's Environment key, PowerShell's `$env:NAME
+ *          =` (and `+=`, `??=`), `Env:` drive writes, `@{NAME='v'}` and
+ *          `[Environment]::SetEnvironmentVariable`, and another language's
+ *          environment table (`os.environ["NAME"] = v`, `process.env["NAME"]
+ *          = v`, `ENV["NAME"] = v`, `$ENV{NAME} = v`). What a heredoc, `echo`,
+ *          `printf`, Write/Edit or an MCP file tool puts into a shell startup
+ *          file (~/.zshenv, ~/.bashrc, ~/.cshrc, .envrc, …) is read as a
+ *          command line.
  *   send   `agx send` / `agx request`: deny in draft mode (the default; the user
  *          runs the command), ask in claude-sends mode (a permission prompt even
  *          when Bash is allowlisted).
  *   ask    trust and publishing changes: `agx identity new|import|sign|allow
- *          <npub>|deny|register`, `agx register`, `agx config set|use`, the `agx
- *          peers` decisions, `agx serve --allow`, `agx listing create|publish|
- *          set-visibility|delist|delete|set-policy` and `agx domain
- *          add|verify|remove`. Also a Grep with no path whose working directory
- *          contains ~/.agx, and agx send/request text in a form it can't parse.
+ *          <npub>|deny|register`, `agx register`, `agx config set|use`
+ *          (including `config set apiKey --stdin`), the `agx peers` decisions,
+ *          `agx serve --allow`, `agx listing create|publish|set-visibility|
+ *          delist|delete|set-policy` and `agx domain add|verify|remove`. Also
+ *          any agx server other than https://app.ellaworks.ai (`--api-base-url`,
+ *          `--api-url` or AGX_API_URL, including a value it can't read), `agx
+ *          login --new-org|--org-name|--org-slug`, every `agx org` subcommand
+ *          except `list`, agx run in a command line that loads variables it
+ *          can't read (`source f`, `env $(cat f)`, `export $(…)`, `eval`,
+ *          dotenv, `--env-file`, a shell's `--rcfile` or BASH_ENV, node's
+ *          NODE_OPTIONS or `--require`, a variable whose name is computed), a
+ *          profile name it can't read (`-p "$P"`), a script in another
+ *          language (`python3 -c`, `node -e`, a heredoc fed to one) or an
+ *          edit of a shell startup file that names AGX_HOME, AGX_PROFILE,
+ *          AGX_API_KEY or AGX_API_URL (or HOME, when it also runs agx) in a
+ *          way it can't follow, a command line about agx that is too long or
+ *          too deeply nested to read in full (see MAX_TEXTS, MAX_AGX_WORDS
+ *          and BUDGET_MS), a Grep with no path whose working directory
+ *          contains ~/.agx, agx send/request text in a form it can't parse,
+ *          and an MCP tool (a browser) opening a listing's manage page
+ *          `/elladex/listings/<id>`, which has the Publish button only a
+ *          human organization admin may click.
+ *   none   everything else, including `agx login` against the default server,
+ *          `agx whoami`, `agx logout` and `agx org list`: Claude Code's own
+ *          permission rules decide.
  *
  * This is a backstop, not a sandbox. It parses shell well enough to see through
  * quoting, env prefixes, wrappers (env, sudo, timeout, xargs, setsid, …),
@@ -39,14 +85,27 @@
  * it treats an agx word followed later by `send` or `request` anywhere in a
  * command (`ssh host agx send …`, `find -exec agx send …`) as a send. It cannot
  * see a command built at run time, for example a subcommand held in a variable
- * (`v=send; agx $v …`), text piped into a shell, a script file that runs agx,
- * a glob that spells the key directory indirectly (`~/.a?x`), or a shell search
- * of the whole home directory (`grep -r … ~`). The tests list these gaps.
+ * (`v=send; agx $v …`, `$E agx login`), text piped into a shell, a script file
+ * or a container that runs agx, a script in another language that hands agx
+ * its arguments as a list (`subprocess.run(["agx", "send", …])`), variables
+ * loaded by a program it doesn't know or from a `.env` file a later command
+ * reads on its own, a startup file copied into place or one that sources
+ * another file, a variable set in an earlier call of a terminal that keeps its
+ * shell between calls, a glob that spells the key directory indirectly
+ * (`~/.a?x`), a shell search of the whole home directory (`grep -r … ~`), an
+ * agx server or profile stored in agx's config or inherited from the shell
+ * (AGX_API_URL, AGX_PROFILE), the whole environment printed with no filter
+ * (`env`) or a script file that reads AGX_API_KEY from its own environment, or
+ * a browser tool that reaches the approval page by clicking, by script or by
+ * typing the address rather than by a `url` input. It stops the step that
+ * moves agx's files (AGX_HOME, AGX_PROFILE, HOME), not a later read of
+ * wherever they went. The tests list these gaps.
  *
  * It tries not to get in the way of ordinary work: the pattern of grep/rg and
  * the message of `git commit -m` / `gh pr create --body` are text, not paths or
- * commands; echo/printf arguments are not commands; and a heredoc written to a
- * file is not parsed at all. Keep permission prompts on; see the plugin README.
+ * commands; echo/printf arguments are not commands, and a heredoc written to a
+ * file is not parsed at all, unless the file is a shell startup file. Keep
+ * permission prompts on; see the plugin README.
  *
  * Dependency-free ESM for Node >= 20.
  */
@@ -80,6 +139,90 @@ const LISTING_WRITES = new Set([
 	"set-policy",
 ]);
 const DOMAIN_WRITES = new Set(["add", "verify", "remove"]);
+
+/** The Ellaworks server `agx login` uses by default. Must equal agx's
+ * `DEFAULT_API_BASE_URL` (agx 0.4.0, src/lib/config.ts). */
+const DEFAULT_API_ORIGIN = "https://app.ellaworks.ai";
+/** agx options that name the server: `agx login --api-base-url`, and the
+ * shorter spelling some commands take. */
+const API_BASE_OPTION = /^--api(?:-base)?-url$/;
+/** `agx login` options that ask the approver to create an organization. */
+const NEW_ORG_OPTIONS = ["--new-org", "--org-name", "--org-slug"];
+/** `agx org` subcommands that only read. Every other one asks (fail closed). */
+const ORG_READS = new Set(["list"]);
+/** An Ellaworks API key: `ela_` and 64 letters. 32 is enough to tell it from
+ * prose without matching a shortened example such as `ela_…`. */
+const ELA_KEY = /(?<![A-Za-z0-9_])ela_[A-Za-z]{32,}/;
+
+const API_KEY_REASON =
+	"elladex-agx: this puts an Ellaworks API key on a command line or into agx's environment (AGX_API_KEY), where it can land in the transcript and the process list. Claude never handles API keys: to sign agx in, Claude runs `agx login`, which sends the user to the browser and stores the key without showing it. If this is a real key, treat it as exposed: revoke it in Settings → API keys. To store a key for CI, the user runs `agx config set apiKey --stdin` in their own terminal.";
+const API_KEY_READ_REASON =
+	"elladex-agx: this prints or passes on AGX_API_KEY, an Ellaworks API key inherited from the shell, which would put it in the transcript or another program's hands. Claude never prints, inspects or uses it; agx reads it itself. To tell whether it is set, use a test that prints nothing else: `[ -n \"$AGX_API_KEY\" ] && echo set`. If the key was printed, the user revokes it in Settings → API keys, and Claude signs agx in with `agx login` instead.";
+const API_KEY_STDIN_REASON =
+	"elladex-agx: `agx config set apiKey --stdin` stores an Ellaworks API key that someone would have to paste. Claude signs agx in with `agx login` instead, which needs no key from anyone. Approve only if you started this yourself and the key never passed through the chat.";
+const AGX_HOME_REASON =
+	"elladex-agx: Claude never sets AGX_HOME, and never sets HOME (USERPROFILE on Windows) in a command that runs agx. agx keeps the agx secret key and the `agx login` key (credentials.json) in AGX_HOME, or in .agx under the home directory, so moving either would put them where Claude could read them. Run agx without it: to sign in, `agx login`. If a login was already made under another directory, the user revokes it with `agx logout` in their own terminal.";
+const UNCHECKED_REASON =
+	"elladex-agx: this command line is too long, too deeply nested or too full of agx words for the guard to check all of it, and it mentions agx, Claude Code's settings or its plugins. Approve only if you know what every part of it does.";
+/** What makes an unchecked command line worth a prompt. */
+const UNCHECKED_TEXT = /agx|send_mode|claude|disableAllHooks|ellaworks/i;
+/** How many pieces of one command line (the line itself, its substitutions,
+ * heredocs and quoted scripts) the guard reads. */
+const MAX_TEXTS = 200;
+/** How many times one simple command may say `agx` before the guard stops
+ * reading it word by word: those checks cost time for every agx word. */
+const MAX_AGX_WORDS = 64;
+/** How long the guard works on one command line, in milliseconds. Claude
+ * Code stops the hook after 10 seconds (hooks/hooks.json), and a hook that
+ * is stopped decides nothing, so the guard gives up well before that and
+ * asks instead. */
+const BUDGET_MS = 3000;
+
+const PROFILE_PATH_REASON =
+	"elladex-agx: this gives agx a profile name that isn't a plain name (`--profile`, `agx config use` or AGX_PROFILE with `/`, `\\`, `..` or white space in it). agx keeps each profile's secret key and its pending `agx login` in a directory named after the profile, inside its private directory, so a path there would put them where Claude could read them. Claude never does this: use a plain profile name, such as `work`, or none.";
+const PROFILE_UNREAD_REASON =
+	"elladex-agx: this gives agx a profile name the guard can't read (`--profile`, `agx config use` or AGX_PROFILE, computed at run time). agx keeps each profile's secret key and its pending `agx login` in a directory named after the profile, so a name that is a path would move them out of agx's private directory. Approve only if you know the name is a plain one.";
+const LOADED_ENV_REASON =
+	"elladex-agx: this command runs agx after loading environment variables the guard can't read, from a file (`source`, `.`, dotenv, `--env-file`, a shell's `--rcfile` or BASH_ENV, node's NODE_OPTIONS or `--require`) or computed at run time (`env $(…)`, `export $(…)`, `eval`, a variable whose name is computed). They could move agx's files (AGX_HOME, AGX_PROFILE, HOME), set an API key (AGX_API_KEY) or change its server (AGX_API_URL). Claude runs agx with the environment it already has. Approve only if you know what this loads.";
+
+/**
+ * The prompt for a script in another language (`python3 -c`, `node -e`, a
+ * heredoc fed to one), or an edit of a shell startup file, that names one of
+ * agx's variables in a way the guard can't follow.
+ * @param {string[]} names
+ */
+function namedInScriptReason(names) {
+	return `elladex-agx: this runs a script, or edits a shell startup file, that names ${names.join(", ")}, and the guard can't read what it does with ${names.length > 1 ? "them" : "it"}. It could move agx's files (AGX_HOME, AGX_PROFILE, HOME), set or print an API key (AGX_API_KEY) or change agx's server (AGX_API_URL). Claude runs agx with the environment it already has, and never prints or passes on an API key. Approve only if you know what this does.`;
+}
+const NEW_ORG_REASON =
+	"elladex-agx: this asks you to create a new Ellaworks organization on the sign-in page (`agx login --new-org`, `--org-name` or `--org-slug`, or `agx org create`). Approve only if you asked for a new organization; the organization itself is created only when you approve it in the browser.";
+
+/**
+ * The prompt for an agx server other than the default. Names each server's
+ * host as a URL parser reads it, next to the value as written, so a
+ * lookalike (`https://app.ellaworks.ai@evil.example`) shows its real host.
+ * @param {(string | null)[]} urls
+ */
+function apiBaseReason(urls) {
+	const shown = unique(urls.map(describeApiBase)).join(", ");
+	return `elladex-agx: this points agx at ${shown} instead of the default Ellaworks server, ${DEFAULT_API_ORIGIN}. agx would send its login key to that server, and \`agx login\` would show a sign-in link and code from it. Approve only if you named this server yourself.`;
+}
+
+/** @param {string | null} value null when the guard can't read it */
+function describeApiBase(value) {
+	if (value === null) {
+		return "a server the guard can't read";
+	}
+	if (value === "") {
+		return "an empty server address";
+	}
+	try {
+		const url = new URL(value);
+		return `${url.protocol}//${url.host} (written \`${value}\`)`;
+	} catch {
+		return `\`${value}\``;
+	}
+}
 
 /** Flags that make `serve` answer, trust or publish on its own. */
 const FORBIDDEN_SERVE_FLAGS = ["--allow-all", "--reply-any", "--advertise"];
@@ -593,9 +736,9 @@ function isAgxEntry(w) {
 }
 
 /** The CLI's npm package, `@nostr-agx/cli` (formerly `@agx/cli`), optionally
- * with a version or tag. */
+ * with a version or tag, or as deno's `npm:@nostr-agx/cli`. */
 function isAgxPackage(w) {
-	return /^@(?:nostr-agx|agx)\/cli(@.*)?$/.test(w);
+	return /^(?:npm:)?@(?:nostr-agx|agx)\/cli(@.*)?$/.test(w);
 }
 
 /**
@@ -737,8 +880,20 @@ export function findAgx(argv) {
 			nested.push(argv.slice(j).join(" "));
 			return { agx, nested };
 		}
-		if (name === "eval") {
+		if (name === "eval" || PS_EVAL.test(name)) {
 			nested.push(argv.slice(i + 1).join(" "));
+			return { agx, nested };
+		}
+		if (name === "trap" || name === "emulate") {
+			// `trap '<string>' EXIT`, zsh's `emulate sh -c '<string>'`: the
+			// shell itself runs the string.
+			const j =
+				name === "trap"
+					? skipOptions(argv, i + 1, new Set())
+					: argv.indexOf("-c", i + 1) + 1;
+			if (j > i && j < argv.length) {
+				nested.push(argv[j]);
+			}
 			return { agx, nested };
 		}
 		if (SHELLS.has(name)) {
@@ -841,10 +996,12 @@ export function findAgx(argv) {
 			agx.push(argv.slice(i + 1));
 		} else if (
 			isDynamic(w) &&
-			(/\bagx\b/.test(w) || isAgxVerb(argv[i + 1]))
+			(/\bagx\b/.test(w) ||
+				isAgxVerb(splitAgxArgs(argv.slice(i + 1)).positional[0]))
 		) {
-			// `$(which agx) send …`, `"$AGX" send …`: a command name computed at run
-			// time. Treat it as agx when it mentions agx or is followed by one of
+			// `$(which agx) send …`, `"$AGX" send …`, `"$AGX" -p work login …`: a
+			// command name computed at run time. Treat it as agx when it mentions
+			// agx or its first argument (after agx's global options) is one of
 			// agx's sensitive subcommands.
 			agx.push(argv.slice(i + 1));
 		}
@@ -857,6 +1014,9 @@ function isDynamic(w) {
 	return w.includes("$");
 }
 
+/** PowerShell's `eval`: `Invoke-Expression`, or its alias `iex`. */
+const PS_EVAL = /^(?:iex|invoke-expression)$/i;
+
 /** An agx entry point, the npm package, or a computed word that mentions agx. */
 function isAgxWord(w) {
 	return (
@@ -864,6 +1024,8 @@ function isAgxWord(w) {
 	);
 }
 
+/** agx subcommands that make a computed command name (`"$AGX" login`) count as
+ * agx: the ones the guard has an opinion about. */
 function isAgxVerb(w) {
 	return [
 		"send",
@@ -873,13 +1035,30 @@ function isAgxVerb(w) {
 		"config",
 		"register",
 		"peers",
+		"login",
+		"org",
+		"listing",
+		"domain",
 	].includes(w ?? "");
 }
 
 // ------------------------------------------------------------- decisions
 
-/** agx's global options that take a separate value. */
-const AGX_VALUE_OPTIONS = new Set(["-p", "--profile"]);
+/**
+ * agx options that take a separate value: the global `--profile`, and the
+ * server and organization options, so that `agx --api-base-url <url> login`
+ * still reads `login` as the subcommand. (commander rejects most of these
+ * before the subcommand, but the guard shouldn't depend on that.)
+ */
+const AGX_VALUE_OPTIONS = new Set([
+	"-p",
+	"--profile",
+	"--api-base-url",
+	"--api-url",
+	"--org",
+	"--org-name",
+	"--org-slug",
+]);
 
 /**
  * The positional words of an agx argument list (options and the values of
@@ -914,19 +1093,182 @@ function hasOption(options, flag) {
 }
 
 /**
+ * The values given to options whose name matches `re`, as `--x v` or
+ * `--x=v`, up to `--` (after it, words are positional). A matching option
+ * with no value yields "".
+ *
+ * @param {string[]} args
+ * @param {RegExp} re
+ */
+function optionValues(args, re) {
+	/** @type {string[]} */
+	const values = [];
+	for (let i = 0; i < args.length; i += 1) {
+		const a = args[i];
+		if (a === "--") {
+			break;
+		}
+		const eq = a.indexOf("=");
+		if (a.startsWith("--") && eq > 0 && re.test(a.slice(0, eq))) {
+			values.push(a.slice(eq + 1));
+		} else if (re.test(a)) {
+			values.push(args[i + 1] ?? "");
+			i += 1;
+		}
+	}
+	return values;
+}
+
+/**
+ * True only for the default server written plainly: https, the default
+ * host (any case, default port), no userinfo, path `/` or none, no query or
+ * fragment. Anything computed at run time (`$URL`, `$(…)`), `http:`, a
+ * lookalike host, userinfo or a value that doesn't parse is not the default,
+ * and neither is a value the guard couldn't read (null).
+ *
+ * @param {string | null} value
+ */
+function isDefaultApiBase(value) {
+	if (
+		value === null ||
+		isDynamic(value) ||
+		/[\s?#`\\]/.test(value) ||
+		!/^https:\/\//i.test(value)
+	) {
+		return false;
+	}
+	let url;
+	try {
+		url = new URL(value);
+	} catch {
+		return false;
+	}
+	return (
+		url.origin === DEFAULT_API_ORIGIN &&
+		url.username === "" &&
+		url.password === "" &&
+		(url.pathname === "/" || url.pathname === "")
+	);
+}
+
+/**
  * @typedef {{ decision: "deny" | "ask", reason: string }} Verdict
  */
 
 /**
- * Decide one agx invocation.
+ * Decide one agx invocation. A server other than the default prompts
+ * whatever the subcommand: it is where agx sends its key, and where a login
+ * link would come from.
  *
  * @param {string[]} args the words after `agx`
  * @param {string} mode "draft" | "claude-sends"
  * @returns {Verdict | null}
  */
 export function decideAgx(args, mode) {
+	const nonDefault = optionValues(args, API_BASE_OPTION).filter(
+		(v) => !isDefaultApiBase(v),
+	);
+	return strongest([
+		nonDefault.length > 0 ? ask(apiBaseReason(nonDefault)) : null,
+		profileVerdict(profileValues(args)),
+		decideAgxSub(args, mode),
+	]);
+}
+
+/**
+ * The profile names an agx argument list gives: `-p v`, `-pv`, `--profile v`
+ * and `--profile=v` up to `--`, and the name `config use <name>` switches to.
+ * An option with no value after it is null: the value comes from somewhere
+ * the guard can't see (`… | xargs agx login -p`).
+ *
+ * @param {string[]} args the words after `agx`
+ * @returns {(string | null)[]}
+ */
+function profileValues(args) {
+	/** @type {(string | null)[]} */
+	const values = [];
+	for (let i = 0; i < args.length && args[i] !== "--"; i += 1) {
+		const a = args[i];
+		if (a === "-p" || a === "--profile") {
+			values.push(args[i + 1] ?? null);
+			i += 1;
+		} else if (a.startsWith("--profile=")) {
+			values.push(a.slice("--profile=".length));
+		} else if (/^-p./.test(a)) {
+			values.push(a.slice(2));
+		}
+	}
+	const [sub, sub2, name] = splitAgxArgs(args).positional;
+	if (sub === "config" && sub2 === "use" && name !== undefined) {
+		values.push(name);
+	}
+	return values;
+}
+
+/**
+ * agx keeps a profile's files in `<its directory>/profiles/<name>`, and agx
+ * 0.4.0 takes the name as given (src/lib/paths.ts, `profileDir`), so a name
+ * with `..` in it is a path out of that directory: `agx -p ../../../tmp/x
+ * login` would write the pending login, device code included, to /tmp/x.
+ * A name that isn't plain is denied; one the guard can't read (null, or
+ * computed at run time) asks.
+ *
+ * @param {(string | null)[]} values
+ * @returns {Verdict | null}
+ */
+function profileVerdict(values) {
+	const unread = (v) => v === null || isDynamic(v);
+	if (values.some((v) => !unread(v) && !isPlainProfile(v))) {
+		return deny(PROFILE_PATH_REASON);
+	}
+	return values.some(unread) ? ask(PROFILE_UNREAD_REASON) : null;
+}
+
+/** A profile name with nothing of a path in it: letters, digits and `_ . @
+ * + -`, not starting with a dot or a dash, and no `..`. Empty is no name. */
+function isPlainProfile(v) {
+	return (
+		v === "" ||
+		(/^[A-Za-z0-9_][A-Za-z0-9_.@+-]*$/.test(v) && !v.includes(".."))
+	);
+}
+
+/**
+ * Decide one agx invocation by its subcommand.
+ *
+ * @param {string[]} args the words after `agx`
+ * @param {string} mode "draft" | "claude-sends"
+ * @returns {Verdict | null}
+ */
+function decideAgxSub(args, mode) {
 	const { positional, options } = splitAgxArgs(args);
 	const [sub, sub2] = positional;
+
+	if (sub === "login") {
+		// Signing in against the default server needs no verdict: agx shows a
+		// link and a code, and a person approves in the browser. Creating an
+		// organization there is a bigger step, so it prompts first.
+		return NEW_ORG_OPTIONS.some((o) => hasOption(options, o))
+			? ask(NEW_ORG_REASON)
+			: null;
+	}
+
+	if (sub === "whoami" || sub === "logout") {
+		// whoami only reads; logout revokes this machine's own login key, which
+		// the user gets back with `agx login`. Neither needs a verdict.
+		return null;
+	}
+
+	if (sub === "org") {
+		if (sub2 === undefined || ORG_READS.has(sub2)) {
+			return null;
+		}
+		return sub2 === "create"
+			? ask(NEW_ORG_REASON)
+			: ask(
+					`elladex-agx: \`agx org ${sub2}\` isn't an agx command the guard knows to be read-only. Approve only if you asked for it.`,
+				);
+	}
 
 	if (sub === "identity") {
 		if (sub2 === "export") {
@@ -955,6 +1297,13 @@ export function decideAgx(args, mode) {
 			return deny(
 				"elladex-agx: `agx config show --reveal` prints the API key. Claude must never run it; use `agx config show` without --reveal.",
 			);
+		}
+		if (sub2 === "set" && isApiKeyName(positional[2])) {
+			// `config set apiKey <value>` (or `apiKey=<value>`) puts the key in
+			// argv; with no value, agx reads it from stdin (`--stdin`, or a pipe).
+			return positional[2].includes("=") || positional.length > 3
+				? deny(API_KEY_REASON)
+				: ask(API_KEY_STDIN_REASON);
 		}
 		if (sub2 === "set" || sub2 === "use") {
 			return ask(
@@ -1030,6 +1379,12 @@ export function decideAgx(args, mode) {
 	return null;
 }
 
+/** The `apiKey` config key in any case or spelling agx might accept
+ * (`apiKey`, `APIKEY`, `api-key`, `api_key`), alone or as `apiKey=<value>`. */
+function isApiKeyName(w) {
+	return /^api[-_]?key(?:=|$)/i.test(w ?? "");
+}
+
 /** @returns {Verdict} */
 function deny(reason) {
 	return { decision: "deny", reason };
@@ -1060,7 +1415,7 @@ function unique(list) {
 // ----------------------------------------------------------- key files
 
 const KEY_FILES_REASON =
-	"elladex-agx: this touches agx's private files (~/.agx or $AGX_HOME), which hold the secret key, the API key and the allowlist. Claude must never read, search, copy or edit them. Use `agx identity show` for the npub and /elladex-agx:allow for the allowlist.";
+	"elladex-agx: this touches agx's private files (~/.agx or $AGX_HOME), which hold the secret key, the allowlist, and credentials.json with the `agx login` API key. Claude must never read, search, copy or edit them. Use `agx whoami` to see who agx is signed in as, `agx identity show` for the npub and /elladex-agx:allow for the allowlist. If a key from these files ever reached the chat, the user revokes it (`agx logout`, or Settings → API keys) and signs in again with `agx login`.";
 
 const EXPORT_REASON =
 	"elladex-agx: `agx identity export` prints the secret key. Claude must never run it. If the user needs the key, they run it in their own terminal.";
@@ -1498,6 +1853,974 @@ function feedsInterpreter(argv) {
 	return argv.some((w) => isInterpreter(basename(w)));
 }
 
+// ------------------------------------------------- agx's environment
+
+/**
+ * The index of a simple command's program: after assignment prefixes, shell
+ * keywords, `function name` (the head of `function f { read NAME; }`),
+ * `builtin` / `command` (with their options) and zsh's `noglob` / `nocorrect`.
+ *
+ * @param {string[]} argv
+ */
+function programIndex(argv) {
+	let p = 0;
+	while (p < argv.length) {
+		const w = argv[p];
+		if (isAssignment(w) || SHELL_KEYWORDS.has(w)) {
+			p += 1;
+		} else if (w === "function" && argv[p + 2] === "{") {
+			p += 2;
+		} else if (
+			w === "builtin" ||
+			w === "command" ||
+			w === "noglob" ||
+			w === "nocorrect"
+		) {
+			p += 1;
+			while (argv[p]?.startsWith("-")) {
+				p += 1;
+			}
+		} else {
+			break;
+		}
+	}
+	return p;
+}
+
+/**
+ * What a shell's brace expansion makes of `word`, as far as `name` goes:
+ * "set" when some expansion starts an assignment to it (`AGX_{HOME,X}=v` and
+ * `{AGX_,X}HOME=v` both expand to `AGX_HOME=v`), "bare" when one is the name
+ * itself (`export AGX_{HOME,X}`), null otherwise. The word is read once,
+ * whatever its length, and never expanded: each brace group is tried
+ * against the name where it stands. A word with white space was quoted, so
+ * the shell doesn't expand it.
+ *
+ * @param {string} word
+ * @param {string} name
+ * @param {boolean} ignoreCase
+ * @returns {"set" | "bare" | null}
+ */
+function braceSpells(word, name, ignoreCase) {
+	if (!word.includes("{") || !word.includes(",") || /\s/.test(word)) {
+		return null;
+	}
+	const target = ignoreCase ? name.toLowerCase() : name;
+	const nodes = parseBraces(ignoreCase ? word.toLowerCase() : word);
+	// A state is how much of the name has matched so far: 0…length, then
+	// PLUS (`NAME+`, waiting for `=`) and SET (`NAME=`, `NAME+=` or `NAME[`
+	// seen: whatever follows is the value).
+	const PLUS = target.length + 1;
+	const SET = target.length + 2;
+	/** @param {number} state @param {string} c @returns {number} -1: no match */
+	const step = (state, c) => {
+		if (state === SET) {
+			return SET;
+		}
+		if (state < target.length) {
+			return c === target[state] ? state + 1 : -1;
+		}
+		if (state === PLUS) {
+			return c === "=" ? SET : -1;
+		}
+		return c === "=" || c === "[" ? SET : c === "+" ? PLUS : -1;
+	};
+	/** @param {BraceNode[]} sequence @param {Set<number>} states */
+	const walk = (sequence, states) => {
+		let current = states;
+		for (const node of sequence) {
+			if (current.size === 0) {
+				break;
+			}
+			if (typeof node !== "string") {
+				const after = new Set();
+				for (const alternative of node.alternatives) {
+					for (const state of walk(alternative, current)) {
+						after.add(state);
+					}
+				}
+				current = after;
+				continue;
+			}
+			for (let k = 0; k < node.length; k += 1) {
+				if (current.size === 1 && current.has(SET)) {
+					break;
+				}
+				const next = new Set();
+				for (const state of current) {
+					const moved = step(state, node[k]);
+					if (moved !== -1) {
+						next.add(moved);
+					}
+				}
+				current = next;
+				if (current.size === 0) {
+					break;
+				}
+			}
+		}
+		return current;
+	};
+	const end = walk(nodes, new Set([0]));
+	return end.has(SET) ? "set" : end.has(target.length) ? "bare" : null;
+}
+
+/**
+ * @typedef {string | { alternatives: BraceNode[][] }} BraceNode
+ */
+
+/**
+ * A word as literal text and brace groups, read in one pass. A group needs
+ * a comma and a closing brace; without either its braces are literal text,
+ * and so is a `${…}` parameter expansion. Groups nest up to 32 deep.
+ *
+ * @param {string} text
+ * @returns {BraceNode[]}
+ */
+function parseBraces(text) {
+	/** @type {{ alternatives: BraceNode[][], parameter: boolean }[]} */
+	const stack = [{ alternatives: [[]], parameter: false }];
+	const top = () => stack[stack.length - 1];
+	/** @param {BraceNode} node append to the alternative being read */
+	const append = (node) => {
+		const sequence = top().alternatives[top().alternatives.length - 1];
+		const last = sequence.length - 1;
+		if (typeof node === "string" && typeof sequence[last] === "string") {
+			sequence[last] += node;
+		} else {
+			sequence.push(node);
+		}
+	};
+	/** Put a group back as the text it was: `{a,b`, or `{a}`. */
+	const appendLiteral = (group, closed) => {
+		append("{");
+		group.alternatives.forEach((sequence, k) => {
+			if (k > 0) {
+				append(",");
+			}
+			sequence.forEach(append);
+		});
+		if (closed) {
+			append("}");
+		}
+	};
+	for (let i = 0; i < text.length; i += 1) {
+		const c = text[i];
+		if (c === "{" && stack.length <= 32) {
+			stack.push({ alternatives: [[]], parameter: text[i - 1] === "$" });
+		} else if (c === "," && stack.length > 1 && !top().parameter) {
+			top().alternatives.push([]);
+		} else if (c === "}" && stack.length > 1) {
+			const group = /** @type {typeof stack[number]} */ (stack.pop());
+			if (group.alternatives.length > 1) {
+				append({ alternatives: group.alternatives });
+			} else {
+				appendLiteral(group, true);
+			}
+		} else {
+			append(c);
+		}
+	}
+	while (stack.length > 1) {
+		appendLiteral(/** @type {typeof stack[number]} */ (stack.pop()), false);
+	}
+	return stack[0].alternatives[0];
+}
+
+/** Builtins that declare, export or set the variables named in their
+ * arguments, even with no `=value` (`export NAME` exports a value set some
+ * other way). csh's `setenv NAME value` too. */
+const DECLARERS = new Set([
+	"export",
+	"declare",
+	"typeset",
+	"local",
+	"readonly",
+	"integer",
+	"float",
+	"setenv",
+]);
+/** Builtins that read a value into the variables named in their arguments. */
+const READERS = new Set(["read", "mapfile", "readarray", "getopts", "vared"]);
+/** Loops that assign their first argument (`for NAME in …`). */
+const LOOPS = new Set(["for", "select", "foreach"]);
+/** PowerShell cmdlets (and aliases) that write, copy or rename an `env:`
+ * drive item. */
+const PS_ITEM_WRITERS =
+	/^(?:set-item|new-item|set-content|add-content|copy-item|rename-item|move-item|si|ni|ac|sc|cpi|rni|mi)$/i;
+
+/**
+ * Every value one simple command gives environment variable `name`, with
+ * null for a value the guard can't read. Empty when it doesn't set `name`.
+ *
+ * Read: `NAME=v` and `NAME+=v` as a word (an assignment prefix, `env`,
+ * `export`, `declare -x`) or inside one (a quoted script), PowerShell's
+ * `$env:NAME = v`, `${env:NAME} = v` and `??=`, and `${NAME:=v}`. Not read
+ * (null): `+=`, an array element, a PowerShell value with more after it
+ * (`'a' + 'b'`), and every way to set a variable without `NAME=`: `export`,
+ * `declare`, `typeset`, `local`, `readonly` or `setenv` naming it; `read`,
+ * `mapfile`, `getopts` or `printf -v` / `print -v` into it; `for NAME in`;
+ * fish's `set NAME`; a nameref to it (`declare -n r=NAME`, which the word
+ * `r=NAME` gives away); `launchctl setenv NAME`; `tmux setenv NAME`; `setx
+ * NAME` and the registry's Environment key; a PowerShell `Env:` drive
+ * write; and another language's environment table indexed by the name
+ * (`os.environ["NAME"] = v`). A reference (`[ "$NAME" = x ]`), `unset NAME`
+ * and `env -u NAME` are not writes.
+ *
+ * @param {string[]} live the command's words that aren't prose or patterns
+ * @param {string} name
+ * @param {boolean} [ignoreCase] match POSIX spellings in any case (true for
+ *   agx's own names; HOME is matched exactly). PowerShell spellings always
+ *   ignore case, as Windows does.
+ * @returns {(string | null)[]}
+ */
+function envSets(live, name, ignoreCase = true) {
+	// The name spelled by brace expansion: `AGX_{HOME,X}=v` sets it (to a
+	// value the guard doesn't read), `export AGX_{HOME,X}` names it.
+	const spelled = live.map((w) => braceSpells(w, name, ignoreCase));
+	// Every other spelling has the name in it: skip the commands that don't
+	// (nearly all of them) before building any pattern.
+	const needle = name.toLowerCase();
+	if (
+		!spelled.includes("bare") &&
+		!live.some((w) => w.toLowerCase().includes(needle))
+	) {
+		return spelled.includes("set") ? [null] : [];
+	}
+	const f = ignoreCase ? "i" : "";
+	const sub = "(?:\\[[^\\]]*\\])?";
+	/** @type {(string | null)[]} */
+	const values = spelled.includes("set") ? [null] : [];
+
+	// `NAME=v` as a whole word: the rest of the word is the value.
+	const word = new RegExp(`^${name}(${sub})(\\+)?=`, f);
+	/** @type {string[]} */
+	const rest = [];
+	for (const w of live) {
+		const m = word.exec(w);
+		if (m) {
+			values.push(m[1] || m[2] ? null : w.slice(m[0].length));
+		} else {
+			rest.push(w);
+		}
+	}
+	const text = rest.join(" ");
+	// PowerShell: `$env:NAME = v`. The value must end the statement; `+ …`
+	// after it (or a `(…)` call) makes it unreadable.
+	const ps = new RegExp(
+		`\\$(?:env:${name}|\\{env:${name}\\})\\s*(\\?\\?|\\+)?=(?!=)\\s*([^\\s;&|'"]*)`,
+		"gi",
+	);
+	for (const m of text.matchAll(ps)) {
+		const after = text.slice(m.index + m[0].length);
+		const ends = /^\s*(?:$|[;&|\n])/.test(after);
+		values.push(m[1] === "+" || !ends ? null : m[2]);
+	}
+	// POSIX inside a word (`bash -c '… NAME=v …'`): a value that runs into a
+	// quote is concatenated, so unreadable. `${NAME=v}` is read below; a `{`
+	// with no `$` is PowerShell's `@{NAME='v'}` (`Start-Process -Environment`).
+	const sh = new RegExp(
+		`(?<![A-Za-z0-9_$:])(?<!\\$\\{)${name}(${sub})\\s*(\\?\\?|\\+)?=(?!=)\\s*([^\\s;&|'"]*)(['"])?`,
+		`g${f}`,
+	);
+	for (const m of text.matchAll(sh)) {
+		values.push(m[1] || m[2] === "+" || m[4] ? null : m[3]);
+	}
+	// Another language's environment table, indexed by the name:
+	// `os.environ["NAME"] = v`, `process.env["NAME"] = v`, `ENV["NAME"] = v`,
+	// perl's `$ENV{NAME} = v`, .NET's `$psi.Environment['NAME'] = v`.
+	const indexed = new RegExp(
+		`(?<!\\$)[\\[{]\\s*['"]?${name}['"]?\\s*[\\]}]\\s*(?:\\?\\?|\\+)?=(?!=)`,
+		f,
+	);
+	if (indexed.test(text)) {
+		values.push(null);
+	}
+	// `${NAME=v}`, `${NAME:=v}`, zsh's `${NAME::=v}`.
+	const expansion = new RegExp(`\\$\\{${name}${sub}:{0,2}=([^}]*)`, f);
+	for (const w of live) {
+		const m = expansion.exec(w);
+		if (m) {
+			values.push(m[1]);
+		}
+	}
+
+	const named = new RegExp(`^${name}${sub}$`, f);
+	const p = programIndex(live);
+	const program = basename(live[p] ?? "");
+	const args = live.slice(p + 1);
+	const isName = (w) =>
+		named.test(w ?? "") ||
+		braceSpells(w ?? "", name, ignoreCase) === "bare";
+	// zsh's `read NAME?prompt` reads into NAME and shows the rest as a prompt.
+	const prompted = new RegExp(`^${name}${sub}\\?`, f);
+	const setsByName =
+		((DECLARERS.has(program) || READERS.has(program)) &&
+			args.some((w) => !w.startsWith("-") && isName(w))) ||
+		(READERS.has(program) && args.some((w) => prompted.test(w))) ||
+		((program === "printf" || program === "print") &&
+			args.some(
+				(w, k) =>
+					(/^-[A-Za-z]*v$/.test(w) && isName(args[k + 1])) ||
+					isName(/^-[A-Za-z]*v(.+)$/.exec(w)?.[1]),
+			)) ||
+		(LOOPS.has(program) && isName(args[0])) ||
+		// fish: `set -gx NAME v`; `set -e` erases and `set -q` only tests.
+		(program === "set" &&
+			!args.some((w) => /^(?:-[A-Za-z]*[eq][A-Za-z]*|--erase|--query)$/.test(w)) &&
+			isName(args.find((w) => !/^[-+]/.test(w)))) ||
+		// `setx NAME v`, also behind `cmd /c`.
+		live.some(
+			(w, k) =>
+				/^setx(?:\.exe)?$/i.test(basename(w)) &&
+				live
+					.slice(k + 1)
+					.some((a) => new RegExp(`^${name}$`, "i").test(a)),
+		) ||
+		(program === "launchctl" &&
+			args.includes("setenv") &&
+			args.slice(args.indexOf("setenv") + 1).some(isName)) ||
+		// tmux hands its environment to every window it opens later.
+		(program === "tmux" &&
+			args.some((w) => w === "setenv" || w === "set-environment") &&
+			args.some(isName)) ||
+		writesEnvRegistry(live, name) ||
+		// A nameref: `declare -n r=NAME` (or `r=NAME` after `declare -n r`).
+		live.some((w) =>
+			new RegExp(`^[A-Za-z_][A-Za-z0-9_]*=${name}${sub}$`, f).test(w),
+		) ||
+		writesEnvDrive(program, args, name);
+	if (setsByName) {
+		values.push(null);
+	}
+	return values;
+}
+
+/**
+ * PowerShell writing an `env:` drive item: `Set-Item Env:\NAME v`,
+ * `New-Item -Path Env: -Name NAME -Value v`, `Rename-Item Env:\X NAME`.
+ * (The PowerShell tool's backslashes arrive as `/`.)
+ *
+ * @param {string} program
+ * @param {string[]} args
+ * @param {string} name
+ */
+function writesEnvDrive(program, args, name) {
+	if (!PS_ITEM_WRITERS.test(program)) {
+		return false;
+	}
+	const plain = args.map((w) => w.replace(/^-\w+:/, ""));
+	const item = new RegExp(`^(?:env:[\\\\/]?)?${name}$`, "i");
+	return (
+		plain.some((w) => /^env:/i.test(w)) && plain.some((w) => item.test(w))
+	);
+}
+
+/**
+ * Windows keeps a user's (and the machine's) environment in the registry,
+ * which is what `setx` writes: `reg add HKCU\Environment /v NAME /d v`,
+ * `Set-ItemProperty -Path HKCU:\Environment -Name NAME -Value v`.
+ *
+ * @param {string[]} live
+ * @param {string} name
+ */
+function writesEnvRegistry(live, name) {
+	const item = new RegExp(`^(?:-\\w+:)?${name}$`, "i");
+	return (
+		live.some((w) => /(?:^|[\\/:])Environment$/i.test(w)) &&
+		live.some((w) => REGISTRY_WRITERS.test(basename(w))) &&
+		live.some((w) => item.test(w))
+	);
+}
+
+/** `reg add`, and PowerShell's cmdlets (and alias) that write a registry
+ * value. */
+const REGISTRY_WRITERS = /^(?:reg(?:\.exe)?|(?:set|new)-itemproperty|sp)$/i;
+
+/** The variables that decide where agx keeps its files (its directory, and
+ * the profile's directory inside it), which key it uses and which server it
+ * talks to. HOME is matched exactly; the others in any case, as Windows reads
+ * them. `bare` matches the name as a whole word (`{NAME}` too: `exec {NAME}<
+ * file` puts a descriptor number in NAME), and `mention` the name as an
+ * identifier of its own inside a longer word, not as a shell reference
+ * (`$NAME`, which other rules judge). */
+const GUARDED_NAMES = [
+	["AGX_HOME", "i"],
+	["AGX_PROFILE", "i"],
+	["AGX_API_KEY", "i"],
+	["AGX_API_URL", "i"],
+	["HOME", ""],
+	["USERPROFILE", "i"],
+].map(([name, flags]) => ({
+	name,
+	bare: new RegExp(`^\\{?${name}(?:\\[[^\\]]*\\])?\\}?$`, flags),
+	mention: new RegExp(`(?<![A-Za-z0-9_$])${name}(?![A-Za-z0-9_])`, flags),
+}));
+
+/** Commands that name a variable without giving it a value: they unset it,
+ * print it or test it. */
+const NAME_READERS = new Set([
+	"unset",
+	"printenv",
+	"env",
+	"test",
+	"[",
+	"[[",
+	"case",
+	"set",
+	"launchctl",
+]);
+
+/**
+ * True when this simple command turns on the shell's allexport option, under
+ * which every variable a later command sets, in any way, is exported: `set
+ * -a`, `set -o allexport`, zsh's `setopt allexport` and `emulate -o
+ * allexport`, `bash -a -c …`.
+ *
+ * @param {string[]} live
+ */
+function turnsOnAllExport(live) {
+	const p = programIndex(live);
+	const program = basename(live[p] ?? "");
+	const args = live.slice(p + 1);
+	if (args.some((w) => /^all_?export$/i.test(w))) {
+		return true;
+	}
+	return (
+		(program === "set" || SHELLS.has(program)) &&
+		args.some((w) => /^-[A-Za-z]*a[A-Za-z]*$/.test(w))
+	);
+}
+
+/**
+ * The guarded variables this simple command names as a bare argument
+ * (`sysread AGX_HOME`, `zstyle -s :x y AGX_HOME`, `wait -p AGX_HOME`). Under
+ * allexport any builtin that fills a variable exports it, and the guard can't
+ * list them all, so there the bare name counts as setting it. Without
+ * allexport such a variable stays in the shell: agx never sees it unless a
+ * command exports it, and every way to export it by name is a write `envSets`
+ * already reads.
+ *
+ * @param {string[]} live
+ * @returns {string[]}
+ */
+function bareNames(live) {
+	const p = programIndex(live);
+	if (NAME_READERS.has(basename(live[p] ?? ""))) {
+		return [];
+	}
+	const args = live.slice(p + 1);
+	return GUARDED_NAMES.filter(({ bare }) =>
+		args.some((w) => bare.test(w)),
+	).map(({ name }) => name);
+}
+
+/**
+ * The guarded variables a word names as an identifier of its own:
+ * `os.environ["NAME"]`, `{ env: { NAME: v } }`, `putenv("NAME", v)`.
+ *
+ * @param {string} word
+ * @returns {string[]}
+ */
+function namesIn(word) {
+	return GUARDED_NAMES.filter(({ mention }) => mention.test(word)).map(
+		({ name }) => name,
+	);
+}
+
+/** `agx`, or its npm package, as a word of a script in another language:
+ * `subprocess.run(["agx", "login"])`, `execSync("npx @nostr-agx/cli login")`.
+ * Not a directory or a longer name (`tools/agx/build.py`, `agx-core`). */
+const AGX_IN_SCRIPT =
+	/(?<![A-Za-z0-9_-])agx(?:\.[cm]?[jt]s)?(?![A-Za-z0-9_\-/.])|@(?:nostr-agx|agx)\/cli/;
+
+/** A word that keeps agx under another name: `A=agx`, `alias a=agx`,
+ * `AGX=/opt/bin/agx`. */
+function namesAgx(w) {
+	const value = isAssignment(w) ? w.slice(w.indexOf("=") + 1) : "";
+	return isAgxEntry(value) || isAgxPackage(value);
+}
+
+/** Interpreters whose script the guard can't parse, and shells with a syntax
+ * of their own (nushell's `with-env { NAME: v }`). A POSIX shell's `-c`
+ * string, and PowerShell's, is parsed as a command line instead. */
+function isScriptLanguage(name) {
+	return (
+		(isInterpreter(name) && !/^(?:pwsh|powershell)$/.test(name)) ||
+		/^(?:nu|xonsh|elvish)$/.test(name)
+	);
+}
+
+/**
+ * Verdicts on the agx environment a simple command sets up, and on an API
+ * key written into it or read out of it. `findAgx` skips assignments, so
+ * they are checked here, for every command and not just agx: `export
+ * AGX_API_URL=…` changes the agx calls that follow it.
+ *
+ * @param {string[]} live the command's words that aren't prose or patterns
+ * @returns {Verdict[]}
+ */
+function envVerdicts(live) {
+	/** @type {Verdict[]} */
+	const out = [];
+	if (
+		envSets(live, "AGX_API_KEY").length > 0 ||
+		live.some((w) => ELA_KEY.test(w))
+	) {
+		out.push(deny(API_KEY_REASON));
+	}
+	if (exposesApiKey(live)) {
+		out.push(deny(API_KEY_READ_REASON));
+	}
+	if (envSets(live, "AGX_HOME").length > 0) {
+		out.push(deny(AGX_HOME_REASON));
+	}
+	const profile = profileVerdict(envSets(live, "AGX_PROFILE"));
+	if (profile) {
+		out.push(profile);
+	}
+	const urls = envSets(live, "AGX_API_URL").filter(
+		(v) => !isDefaultApiBase(v),
+	);
+	if (urls.length > 0) {
+		out.push(ask(apiBaseReason(urls)));
+	}
+	return out;
+}
+
+/**
+ * True when this simple command moves the home directory, where agx keeps
+ * `.agx` when AGX_HOME is unset: HOME, or USERPROFILE on Windows.
+ *
+ * @param {string[]} live
+ */
+function movesHome(live) {
+	return (
+		envSets(live, "HOME", false).length > 0 ||
+		envSets(live, "USERPROFILE").length > 0
+	);
+}
+
+/** Shell builtins that read a file's assignments into the shell itself. */
+const SOURCE_BUILTINS = new Set(["source", "."]);
+/** PowerShell's: a module runs in the session that imports it. */
+const PS_IMPORT = /^(?:import-module|ipmo)$/i;
+/** Programs that run a command with variables loaded from a file or a
+ * directory, on their own or behind a package runner (`npx dotenv-cli -e f
+ * -- agx login`, `pnpm exec dotenv -- agx login`). */
+const ENV_FILE_LOADERS = new Set([
+	"dotenv",
+	"dotenv-cli",
+	"dotenvx",
+	"env-cmd",
+	"direnv",
+	"envdir",
+]);
+/** Variables that make a shell or node read a file, or run code, before the
+ * command: `BASH_ENV=f bash -c …`, `ENV=f sh -ic …`, `ZDOTDIR=d zsh -c …`,
+ * `XDG_CONFIG_HOME=d fish -c …`, `NODE_OPTIONS=--env-file=f agx …`. */
+const LOADER_VARIABLES = [
+	"BASH_ENV",
+	"ENV",
+	"ZDOTDIR",
+	"XDG_CONFIG_HOME",
+	"NODE_OPTIONS",
+];
+/** node options that run a module before the script, inside agx's process. */
+const NODE_PRELOAD =
+	/^(?:-r|--require|--import|--loader|--experimental-loader)(?:=|$)/;
+
+/**
+ * The program a simple command runs, by name and without a version: its own
+ * program, or the one a package runner starts (`npx dotenv-cli@7 …`, `pnpm
+ * exec dotenv …`, `yarn dotenv …`, `corepack pnpm dlx env-cmd …`). `npm
+ * install dotenv` runs `install`, not dotenv.
+ *
+ * @param {string[]} live
+ * @param {number} p the index of the command's own program
+ */
+function runnerTarget(live, p) {
+	let i = p;
+	if (basename(live[i] ?? "") === "corepack") {
+		i += 1;
+	}
+	const runner = basename(live[i] ?? "");
+	if (["npx", "pnpx", "bunx"].includes(runner)) {
+		i = skipOptions(live, i + 1, new Set(["-p", "--package"]));
+	} else if (["pnpm", "npm", "yarn", "bun"].includes(runner)) {
+		const values = new Set(["--filter", "-F", "-C", "--dir", "--cwd"]);
+		i = skipOptions(live, i + 1, values);
+		if (["exec", "x", "dlx", "run"].includes(live[i] ?? "")) {
+			i = skipOptions(live, i + 1, values);
+		}
+	}
+	return basename(live[i] ?? "").replace(/@.*$/, "");
+}
+
+/**
+ * True when this simple command loads environment variables the guard can't
+ * read: from a file (`source f`, `. f`, dotenv, `--env-file`, a shell's
+ * `--rcfile` or BASH_ENV, node's NODE_OPTIONS or `--require`), or computed
+ * at run time (`env $(cat f) …`, `export $(cat f)`, `eval "$(…)"`, `xargs
+ * env`, a variable whose name is computed: `read "$k"`, `printf -v "$k"`,
+ * PowerShell's `Set-Item "Env:$k"`).
+ *
+ * @param {string[]} live
+ * @param {boolean} textOnly the command only prints, searches or records text
+ */
+function loadsEnvironment(live, textOnly) {
+	if (
+		live.some((w) =>
+			/^--(?:env-file(?:-if-exists)?|rcfile|init-file)(?:=|$)|^--env=/.test(
+				w,
+			),
+		)
+	) {
+		return true;
+	}
+	const p = programIndex(live);
+	const program = basename(live[p] ?? "");
+	const args = live.slice(p + 1);
+	if (SOURCE_BUILTINS.has(program) || PS_IMPORT.test(program)) {
+		return true;
+	}
+	if (!textOnly && ENV_FILE_LOADERS.has(runnerTarget(live, p))) {
+		return true;
+	}
+	if (LOADER_VARIABLES.some((v) => envSets(live, v, false).length > 0)) {
+		return true;
+	}
+	if (
+		live.some((w) => JS_RUNTIMES.has(basename(w))) &&
+		live.some((w) => NODE_PRELOAD.test(w))
+	) {
+		return true;
+	}
+	if (program === "xargs" && args.some((w) => basename(w) === "env")) {
+		return true;
+	}
+	// A variable whose name is computed: `read "$k"`, `printf -v "$k" …`.
+	if (
+		READERS.has(program) &&
+		args.some((w) => !w.startsWith("-") && isDynamic(w))
+	) {
+		return true;
+	}
+	if (
+		(program === "printf" || program === "print") &&
+		args.some(
+			(w, k) =>
+				(/^-[A-Za-z]*v$/.test(w) && isDynamic(args[k + 1] ?? "")) ||
+				isDynamic(/^-[A-Za-z]*v(.+)$/.exec(w)?.[1] ?? ""),
+		)
+	) {
+		return true;
+	}
+	// PowerShell: `Set-Item "Env:$k" $v`, `New-Item -Path Env: -Name $k`.
+	if (PS_ITEM_WRITERS.test(program)) {
+		const plain = args.map((w) => w.replace(/^-\w+:/, ""));
+		const drive = plain.some((w) => /^env:[\\/]?$/i.test(w));
+		if (
+			plain.some((w) => /^env:.*\$/i.test(w)) ||
+			(drive && plain.some(isDynamic))
+		) {
+			return true;
+		}
+	}
+	// `iex (…)`: the tokenizer splits the expression off at its parenthesis.
+	if (PS_EVAL.test(program) && args.length === 0) {
+		return true;
+	}
+	return (
+		(program === "env" ||
+			program === "eval" ||
+			PS_EVAL.test(program) ||
+			DECLARERS.has(program)) &&
+		args.some((w) => isDynamic(w) && !isAssignment(w))
+	);
+}
+
+/** Shell startup files: what is written there runs in every later shell,
+ * Claude Code's own included. */
+const SHELL_STARTUP_FILE =
+	/(?:^|[\\/])(?:\.(?:zshenv|zshrc|zprofile|zlogin|bashrc|bash_profile|bash_login|bash_aliases|profile|kshrc|mkshrc|cshrc|tcshrc|login|xprofile|xsessionrc|envrc|pam_environment)|config\.fish|(?:env|config|login)\.nu|(?:Microsoft\.\w+_)?profile\.ps1)$|[\\/]etc[\\/](?:environment|zshenv|zshrc|zprofile|zlogin|bashrc|bash\.bashrc|profile|csh\.cshrc|csh\.login)$|[\\/](?:profile\.d|environment\.d|fish[\\/]conf\.d)[\\/][^\\/]+$/i;
+
+function isShellStartupFile(path) {
+	return SHELL_STARTUP_FILE.test(path.trim().replace(/['"]/g, ""));
+}
+
+/** `$AGX_API_KEY` or `${AGX_API_KEY…}`, but not `${#AGX_API_KEY}` (its
+ * length) or `${AGX_API_KEY:+…}` (text only when set). */
+const API_KEY_REF =
+	/\$(?:AGX_API_KEY(?![A-Za-z0-9_])|\{AGX_API_KEY(?![A-Za-z0-9_])(?!:?\+))/;
+/** PowerShell's `$env:AGX_API_KEY`. */
+const PS_API_KEY_REF = /\$(?:env:AGX_API_KEY(?![A-Za-z0-9_])|\{env:AGX_API_KEY\})/i;
+/** Commands that only test a value: `[ -n "$AGX_API_KEY" ]` prints nothing. */
+const COMPARE_PROGRAMS = new Set(["[", "[[", "test", "case"]);
+/** PowerShell cmdlets (and aliases) that print an `env:` drive item. */
+const PS_ITEM_READERS =
+	/^(?:get-item|gi|get-childitem|gci|dir|ls|get-content|gc|cat|type|get-itemproperty|gp|get-itempropertyvalue|gpv)$/i;
+
+/**
+ * True when this simple command prints or passes on an API key agx inherited
+ * from the shell: `printenv AGX_API_KEY`, `echo $AGX_API_KEY`, `curl -H
+ * "X-API-Key: $AGX_API_KEY"`, PowerShell's `Write-Output $env:AGX_API_KEY`
+ * or `Get-Item Env:\AGX_API_KEY`. A test (`[ -n "$AGX_API_KEY" ] && echo
+ * set`) is fine. A word with spaces may be a script another program runs
+ * (`bash -c '…'`), so its own commands are judged instead.
+ *
+ * @param {string[]} argv
+ * @param {number} [depth]
+ */
+function exposesApiKey(argv, depth = 0) {
+	const p = programIndex(argv);
+	const program = basename(argv[p] ?? "");
+	const args = argv.slice(p + 1);
+	if (program === "printenv" && args.includes("AGX_API_KEY")) {
+		return true;
+	}
+	if (
+		PS_ITEM_READERS.test(program) &&
+		args.some((w) => /^(?:-\w+:)?env:[\\/]?AGX_API_KEY$/i.test(w))
+	) {
+		return true;
+	}
+	if (COMPARE_PROGRAMS.has(program)) {
+		return false;
+	}
+	return argv.some((w, k) => {
+		// A bare `$env:AGX_API_KEY` in program position is also how a
+		// PowerShell condition (`if ($env:AGX_API_KEY) …`) tokenizes: let it be.
+		if (!API_KEY_REF.test(w) && !(k > p && PS_API_KEY_REF.test(w))) {
+			return false;
+		}
+		if (!/\s/.test(w) || depth >= 4) {
+			return true;
+		}
+		return tokenize(w).commands.some((c) => exposesApiKey(c, depth + 1));
+	});
+}
+
+/**
+ * True when this simple command prints the whole environment (`env`,
+ * `printenv`, `set`, `export -p`, `declare -x`, …), which shows an inherited
+ * AGX_API_KEY along with everything else.
+ *
+ * @param {string[]} argv
+ */
+function dumpsEnvironment(argv) {
+	const p = programIndex(argv);
+	const program = basename(argv[p] ?? "");
+	const args = argv.slice(p + 1);
+	if (program === "set") {
+		return args.length === 0;
+	}
+	if (program === "env" || program === "printenv") {
+		return args.every((w) => w.startsWith("-") && !/^-[uiCS]/.test(w));
+	}
+	return (
+		["export", "declare", "typeset"].includes(program) &&
+		args.every((w) => /^-[A-Za-z]+$/.test(w))
+	);
+}
+
+/**
+ * PowerShell's `[Environment]::SetEnvironmentVariable('NAME', …)`, which the
+ * tokenizer splits at its parentheses, checked on the command text instead.
+ *
+ * @param {string} text
+ * @param {string} name
+ */
+function setsEnvironmentVariable(text, name) {
+	return new RegExp(
+		`SetEnvironmentVariable\\s*\\(\\s*['"]?${name}['"]?\\s*,`,
+		"i",
+	).test(text);
+}
+
+/**
+ * True when the command text sets a variable under a name that is computed,
+ * in forms the tokenizer splits at their parentheses: PowerShell's
+ * `SetEnvironmentVariable($n, …)`, `SetEnvironmentVariable(('AGX_'+'HOME'),
+ * …)` and `Set-Item ("Env:AGX_" + "HOME") v`, and zsh's `${(P)name::=v}`.
+ * Every pattern here reads a bounded stretch of text, so a long command
+ * line can't make it slow.
+ *
+ * @param {string} text
+ */
+function setsComputedVariable(text) {
+	if (
+		/SetEnvironmentVariable\s{0,16}\(\s{0,16}(?!['"]?[A-Za-z_][A-Za-z0-9_]{0,64}['"]?\s{0,16},)/i.test(
+			text,
+		)
+	) {
+		return true;
+	}
+	// zsh: `${(P)name::=v}`, the P among other flags.
+	for (const m of text.matchAll(/\$\{\(([^)\s]{0,32})\)[^}\n]{0,256}=/g)) {
+		if (m[1].includes("P")) {
+			return true;
+		}
+	}
+	// `(env:` or `("env:` opening an expression, after an item cmdlet in the
+	// same statement.
+	let seen = 0;
+	for (const m of text.matchAll(/\(\s{0,16}['"]?env:/gi)) {
+		seen += 1;
+		if (seen > 16) {
+			return true;
+		}
+		const before = text.slice(Math.max(0, m.index - 256), m.index);
+		const statement = before.slice(
+			Math.max(
+				before.lastIndexOf(";"),
+				before.lastIndexOf("|"),
+				before.lastIndexOf("\n"),
+			) + 1,
+		);
+		if (statement.split(/[\s&({]+/).some((w) => PS_ITEM_WRITERS.test(w))) {
+			return true;
+		}
+	}
+	return false;
+}
+
+/**
+ * @param {string} text
+ * @returns {Verdict[]}
+ */
+function setEnvironmentVariableVerdicts(text) {
+	/** @type {Verdict[]} */
+	const out = [];
+	if (setsEnvironmentVariable(text, "AGX_API_KEY")) {
+		out.push(deny(API_KEY_REASON));
+	}
+	if (setsEnvironmentVariable(text, "AGX_HOME")) {
+		out.push(deny(AGX_HOME_REASON));
+	}
+	if (setsEnvironmentVariable(text, "AGX_PROFILE")) {
+		out.push(ask(PROFILE_UNREAD_REASON));
+	}
+	if (setsEnvironmentVariable(text, "AGX_API_URL")) {
+		out.push(ask(apiBaseReason([null])));
+	}
+	return out;
+}
+
+// ------------------------- the sign-in approval page and listing pages
+
+const DEVICE_PAGE_REASON =
+	"elladex-agx: this opens the Ellaworks sign-in approval page (/auth/device) with a tool Claude drives. Only a person approves an `agx login`: give the user the link and code that your own `agx login` printed, and let them open it in their own browser. Claude never opens, fills in or clicks that page.";
+
+const LISTING_PAGE_REASON =
+	"elladex-agx: this opens an Elladex listing's manage page (/elladex/listings/…) with a tool Claude drives. That page has the Publish button, and only a human organization admin may click Publish: making a listing public is the admin's confirmation, in their own browser. Approve only if you want Claude to look at the page; it must not click Publish, or edit, de-list or delete the listing. To publish, open the link yourself.";
+
+/** MCP tool inputs that hold a URL to open (browser navigation tools). */
+const URL_KEYS = new Set(["url", "uri", "href"]);
+
+/**
+ * True for the device sign-in page, `/auth/device` (with an optional locale
+ * prefix and any query, such as `?code=…`), and the device endpoints under
+ * `/api/auth/device/`, on any host, and for any page whose query carries one
+ * of those as a value: a sign-in page sends a signed-in browser straight on
+ * to its `redirectTo`. Repeated slashes count as one, since the server
+ * redirects `//auth/device` to the page. A value with no scheme
+ * (`app.ellaworks.ai/auth/device`) is read as https; one that starts with
+ * `/` is a path.
+ *
+ * @param {string} value
+ */
+function isDeviceApprovalUrl(value) {
+	return reachesPath(value, isDevicePath);
+}
+
+/**
+ * True for an Elladex listing's manage page, `/elladex/listings/<id>` (with
+ * an optional locale prefix, and anything under it), on any host, read the
+ * same way as the approval page: directly, with repeated slashes, or as a
+ * sign-in page's redirect (`/auth/login?redirectTo=/elladex/listings/l_7`).
+ * The list of your listings, `/elladex/listings`, has no Publish button.
+ *
+ * @param {string} value
+ */
+function isListingManageUrl(value) {
+	return reachesPath(value, isListingManagePath);
+}
+
+/**
+ * True when `value`, read as a URL or a path, has a path `matches` accepts,
+ * or carries one in its query, up to three redirects deep.
+ *
+ * @param {string} value
+ * @param {(path: string) => boolean} matches
+ * @param {number} [depth] how many query values deep this is
+ */
+function reachesPath(value, matches, depth = 0) {
+	const v = value.trim();
+	/** @type {URL | null} */
+	let url = null;
+	try {
+		url = /^[a-z][a-z0-9+.-]*:/i.test(v)
+			? new URL(v)
+			: v.startsWith("/")
+				? new URL(v, "https://relative.invalid")
+				: new URL(`https://${v}`);
+	} catch {
+		// Not a URL: check the text before any query as a path.
+	}
+	const raw = v.split(/[?#]/)[0] ?? "";
+	const path = url ? url.pathname : raw;
+	let decoded = path;
+	try {
+		decoded = decodeURIComponent(path);
+	} catch {
+		// Keep the raw path: a malformed escape is checked as written.
+	}
+	// A value starting with `//` parses as a host; check its text as a path
+	// too, failing closed.
+	const paths = v.startsWith("/") ? [path, decoded, raw] : [path, decoded];
+	if (paths.some(matches)) {
+		return true;
+	}
+	if (!url || depth >= 3) {
+		return false;
+	}
+	for (const [, inner] of url.searchParams) {
+		if (inner && reachesPath(inner, matches, depth + 1)) {
+			return true;
+		}
+	}
+	return false;
+}
+
+/** A path with `\` as `/`, repeated slashes as one, no trailing slash, lower case. */
+function cleanPath(path) {
+	return path
+		.replace(/\\/g, "/")
+		.replace(/\/{2,}/g, "/")
+		.replace(/\/+$/, "")
+		.toLowerCase();
+}
+
+/** An optional locale segment before a page's path (`/en`, `/pt-br`). */
+const LOCALE_PREFIX = "(?:\\/[a-z]{2}(?:-[a-z0-9]{2,4})?)?";
+
+/** @param {string} path */
+function isDevicePath(path) {
+	const clean = cleanPath(path);
+	return (
+		new RegExp(`^${LOCALE_PREFIX}\\/auth\\/device$`).test(clean) ||
+		/^\/api\/auth\/device(?:\/|$)/.test(clean)
+	);
+}
+
+/** @param {string} path */
+function isListingManagePath(path) {
+	return new RegExp(`^${LOCALE_PREFIX}\\/elladex\\/listings\\/[^/]+`).test(
+		cleanPath(path),
+	);
+}
+
 // ---------------------------------------------------------------- decide
 
 /** `agx … send|request` in text the parser could not split into commands. */
@@ -1574,18 +2897,55 @@ function agxAnywhere(argv, mode) {
  *
  * @param {string} command
  * @param {string} mode
- * @param {{ agxHome?: string, cwd?: string }} ctx
+ * @param {{ agxHome?: string, cwd?: string, deadline?: number }} ctx `deadline`:
+ *   when to stop reading and ask instead (default: BUDGET_MS from now)
  * @returns {Verdict | null}
  */
 export function decideCommand(command, mode, ctx = {}) {
 	/** @type {(Verdict | null)[]} */
 	const verdicts = [];
+	// Across the whole command line, nested scripts included: HOME and
+	// loaded variables matter only to agx, and only within one line (the
+	// Bash tool starts each call with a fresh environment).
+	let runsAgx = false;
+	let homeMoved = false;
+	let envLoaded = false;
+	let allExport = false;
+	/** Guarded variables named as a bare argument: a write under allexport. */
+	const bare = new Set();
+	/** Guarded variables named in a script the guard can't parse. */
+	const named = new Set();
+	// Set when part of the command line goes unread: too many pieces, too
+	// many agx words in one command, or out of time. It ends in a prompt.
+	let unchecked = false;
+	const deadline = ctx.deadline ?? Date.now() + BUDGET_MS;
+	const outOfTime = () => Date.now() > deadline;
 	const queue = [command];
-	for (let n = 0; queue.length > 0 && n < 200; n += 1) {
+	// Each piece is read once: a word such as `$(command -v agx)` holds
+	// itself again when it is read as a command line.
+	const seen = new Set(queue);
+	const enqueue = (/** @type {string[]} */ ...texts) => {
+		for (const text of texts) {
+			if (!seen.has(text)) {
+				seen.add(text);
+				queue.push(text);
+			}
+		}
+	};
+	for (let n = 0; queue.length > 0; n += 1) {
+		if (n >= MAX_TEXTS || outOfTime()) {
+			unchecked = true;
+			break;
+		}
 		const text = /** @type {string} */ (queue.shift());
 		const { commands, nested, redirects, heredocs } = tokenize(text);
-		queue.push(...nested);
+		enqueue(...nested);
 		const mentionsMode = mentionsModeText(text);
+		verdicts.push(...setEnvironmentVariableVerdicts(text));
+		homeMoved ||=
+			setsEnvironmentVariable(text, "HOME") ||
+			setsEnvironmentVariable(text, "USERPROFILE");
+		envLoaded ||= setsComputedVariable(text);
 
 		for (const target of redirects) {
 			if (touchesKeyFiles(target, ctx)) {
@@ -1599,20 +2959,50 @@ export function decideCommand(command, mode, ctx = {}) {
 			}
 		}
 
-		// A heredoc is parsed as commands only when a shell reads it; a body
-		// written to a file or a commit message is text.
+		// A heredoc is parsed as commands only when a shell reads it, now or
+		// later: one fed to a shell, or one in a command line that names a
+		// shell startup file (`cat >> ~/.zshenv <<EOF`, `tee -a ~/.bashrc
+		// <<EOF`, `cat <<EOF | tee -a ~/.zshenv`). A body written to any other
+		// file, or a commit message, is text.
+		const namesStartup =
+			redirects.some(isShellStartupFile) ||
+			commands.some((argv) => argv.some(isShellStartupFile));
 		for (const { argv, body } of heredocs) {
-			if (feedsShell(argv)) {
-				queue.push(body);
+			if (feedsShell(argv) || namesStartup) {
+				enqueue(body);
 			} else if (feedsInterpreter(argv)) {
 				if (touchesKeyFiles(body, ctx)) {
 					verdicts.push(deny(KEY_FILES_REASON));
 				}
-				verdicts.push(...scanText(body, mode));
+				if (ELA_KEY.test(body)) {
+					verdicts.push(deny(API_KEY_REASON));
+				}
+				if (agxWords(body) > MAX_AGX_WORDS) {
+					unchecked = true;
+				} else {
+					verdicts.push(...scanText(body, mode));
+				}
+				// The script may set a guarded variable in its own language
+				// and run agx itself: the guard can't follow it, so it asks.
+				if (argv.some((w) => isScriptLanguage(basename(w)))) {
+					for (const name of namesIn(body)) {
+						named.add(name);
+					}
+					runsAgx ||= AGX_IN_SCRIPT.test(body);
+				} else {
+					// PowerShell reads its script as the PowerShell tool would.
+					enqueue(body);
+				}
 			}
 		}
 
+		let dumpsEnv = false;
+		let filtersForKey = false;
 		for (const argv of commands) {
+			if (outOfTime()) {
+				unchecked = true;
+				break;
+			}
 			const { textOnly, data } = textArguments(argv);
 			const live = argv.filter((_, k) => !data.has(k));
 			if (live.some((w) => touchesKeyFiles(w, ctx))) {
@@ -1624,16 +3014,68 @@ export function decideCommand(command, mode, ctx = {}) {
 			) {
 				verdicts.push(deny(MODE_REASON));
 			}
+			// AGX_API_KEY / AGX_HOME / AGX_API_URL and key literals, in every
+			// word that isn't prose or a pattern: an echo argument counts, a grep
+			// pattern or a commit message doesn't.
+			verdicts.push(...envVerdicts(live));
+			homeMoved ||= movesHome(live);
+			envLoaded ||= loadsEnvironment(live, textOnly);
+			allExport ||= turnsOnAllExport(live);
+			// `env | grep -i agx`: the whole environment, searched for the key.
+			dumpsEnv ||= dumpsEnvironment(argv);
+			filtersForKey ||=
+				GREP_TOOLS.has(basename(argv[programIndex(argv)] ?? "")) &&
+				[...data].some((k) => /agx|api.?key|ela_/i.test(argv[k] ?? ""));
 
 			const found = findAgx(argv);
-			queue.push(...found.nested);
+			enqueue(...found.nested);
 			for (const args of found.agx) {
 				verdicts.push(decideAgx(args, mode));
 			}
+			// An agx word anywhere, or agx kept under another name for a
+			// later command: `A=agx; "$A" whoami`, `alias a=agx`.
+			runsAgx ||=
+				found.agx.length > 0 ||
+				(!textOnly &&
+					argv.some(
+						(w, k) =>
+							(isAgxWord(w) || namesAgx(w)) &&
+							!PACKAGE_FILTER_OPTIONS.has(argv[k - 1] ?? ""),
+					));
 
 			if (textOnly) {
+				// What `echo` or `printf` writes into a shell startup file is a
+				// command line a later shell runs.
+				const p = programIndex(argv);
+				if (
+					namesStartup &&
+					["echo", "printf"].includes(basename(argv[p] ?? ""))
+				) {
+					// Joined (`echo read NAME`) and one by one (`printf '%s\n'
+					// 'read NAME' 'export NAME'`).
+					enqueue(
+						argv.slice(p + 1).join(" "),
+						...argv.slice(p + 1).filter((w) => /\s/.test(w)),
+					);
+				}
 				continue;
 			}
+			for (const name of bareNames(live)) {
+				bare.add(name);
+			}
+			// A script in another language (`python3 -c`, `node -e`), or an
+			// edit of a shell startup file (`sed -i … ~/.zshenv`): the guard
+			// can't parse it, so naming a guarded variable there asks. Not
+			// when the script is agx itself (`node …/agx.js search HOME`).
+			const script =
+				found.agx.length === 0 &&
+				live.some((w) => isScriptLanguage(basename(w)));
+			if (script || live.some(isShellStartupFile)) {
+				for (const name of live.flatMap(namesIn)) {
+					named.add(name);
+				}
+			}
+			runsAgx ||= script && live.some((w) => AGX_IN_SCRIPT.test(w));
 			if (turnsGuardOff(live)) {
 				verdicts.push(deny(GUARD_OFF_REASON));
 			}
@@ -1643,14 +3085,20 @@ export function decideCommand(command, mode, ctx = {}) {
 			) {
 				verdicts.push(deny(GUARD_OFF_REASON));
 			}
-			verdicts.push(...agxAnywhere(argv, mode));
 			// A quoted string handed to another program may be a command it
 			// runs: `tmux new -d '…'`, `ssh host '…'`, `script -c '…'`.
 			for (const w of argv) {
 				if (/\s/.test(w) && /agx|send_mode/i.test(w)) {
-					queue.push(w);
+					enqueue(w);
 				}
 			}
+			// The two checks below cost time for every agx word in the
+			// command; past a limit, ask instead of reading them all.
+			if (agxWords(argv.join(" ")) > MAX_AGX_WORDS) {
+				unchecked = true;
+				continue;
+			}
+			verdicts.push(...agxAnywhere(argv, mode));
 			const unfiltered = argv.filter(
 				(_, k) => !PACKAGE_FILTER_OPTIONS.has(argv[k - 1] ?? ""),
 			);
@@ -1663,8 +3111,48 @@ export function decideCommand(command, mode, ctx = {}) {
 					: scanned),
 			);
 		}
+		if (dumpsEnv && filtersForKey) {
+			verdicts.push(deny(API_KEY_READ_REASON));
+		}
+	}
+	// Under allexport, a builtin that fills a variable also exports it.
+	if (allExport) {
+		if (bare.has("AGX_API_KEY")) {
+			verdicts.push(deny(API_KEY_REASON));
+		}
+		if (bare.has("AGX_HOME")) {
+			verdicts.push(deny(AGX_HOME_REASON));
+		}
+		if (bare.has("AGX_PROFILE")) {
+			verdicts.push(ask(PROFILE_UNREAD_REASON));
+		}
+		if (bare.has("AGX_API_URL")) {
+			verdicts.push(ask(apiBaseReason([null])));
+		}
+		homeMoved ||= bare.has("HOME") || bare.has("USERPROFILE");
+	}
+	if (runsAgx && homeMoved) {
+		verdicts.push(deny(AGX_HOME_REASON));
+	}
+	if (runsAgx && envLoaded) {
+		verdicts.push(ask(LOADED_ENV_REASON));
+	}
+	// HOME is named in scripts all the time; it matters only when agx runs.
+	const asked = [...named].filter(
+		(name) => runsAgx || !["HOME", "USERPROFILE"].includes(name),
+	);
+	if (asked.length > 0) {
+		verdicts.push(ask(namedInScriptReason(asked)));
+	}
+	if (unchecked && UNCHECKED_TEXT.test(command)) {
+		verdicts.push(ask(UNCHECKED_REASON));
 	}
 	return strongest(verdicts);
+}
+
+/** How many times `text` says agx, in any case and inside longer words. */
+function agxWords(text) {
+	return text.match(/agx/gi)?.length ?? 0;
 }
 
 /** String inputs of other tools (PowerShell, MCP) that hold a command. */
@@ -1680,6 +3168,50 @@ const PATH_KEYS = new Set([
 ]);
 
 /**
+ * Every string in a tool input, at any depth, with the name of the object key
+ * it sits under (an array passes its key on to its items): `{actions: [{input:
+ * {url: "…"}}]}` yields `["url", "…"]`. Bounded, so a huge input can't stall
+ * the hook.
+ *
+ * @param {unknown} value
+ * @returns {[string, string][]}
+ */
+function stringInputs(value) {
+	/** @type {[string, string][]} */
+	const out = [];
+	/** @type {[unknown, string, number][]} */
+	const stack = [[value, "", 0]];
+	for (let n = 0; stack.length > 0 && n < 10000; n += 1) {
+		const [v, key, depth] = /** @type {[unknown, string, number]} */ (
+			stack.pop()
+		);
+		if (typeof v === "string") {
+			out.push([key, v]);
+		} else if (depth < 10 && Array.isArray(v)) {
+			for (const item of v) {
+				stack.push([item, key, depth + 1]);
+			}
+		} else if (depth < 10 && v && typeof v === "object") {
+			for (const [k, item] of Object.entries(v)) {
+				stack.push([item, k, depth + 1]);
+			}
+		}
+	}
+	return out;
+}
+
+/** The text a Write, Edit or MultiEdit call puts into a file. */
+function writtenText(toolInput) {
+	const parts = [toolInput.content, toolInput.new_string];
+	if (Array.isArray(toolInput.edits)) {
+		for (const edit of toolInput.edits) {
+			parts.push(edit?.new_string);
+		}
+	}
+	return parts.filter((p) => typeof p === "string").join("\n");
+}
+
+/**
  * The hook entry point: a PreToolUse input object in, a verdict (or null for
  * "no opinion") out.
  *
@@ -1689,7 +3221,13 @@ const PATH_KEYS = new Set([
  */
 export function decide(input, env) {
 	const mode = sendMode(env.CLAUDE_PLUGIN_OPTION_SEND_MODE);
-	const ctx = { agxHome: env.AGX_HOME, cwd: input.cwd };
+	// One time budget for the whole tool call, however many command lines
+	// its input holds.
+	const ctx = {
+		agxHome: env.AGX_HOME,
+		cwd: input.cwd,
+		deadline: Date.now() + BUDGET_MS,
+	};
 	const toolInput = input.tool_input ?? {};
 	const str = (v) => (typeof v === "string" ? v : "");
 	const home = homedir().replace(/\\/g, "/");
@@ -1722,6 +3260,14 @@ export function decide(input, env) {
 			}
 			if (isGuardFile(path, input.cwd)) {
 				return deny(GUARD_OFF_REASON);
+			}
+			// A shell startup file runs in every later shell: what Claude writes
+			// there is a command line, checked like one.
+			if (isShellStartupFile(path)) {
+				const verdict = decideCommand(writtenText(toolInput), mode, ctx);
+				if (verdict) {
+					return verdict;
+				}
 			}
 			if (
 				isClaudeSettings(path) &&
@@ -1757,25 +3303,40 @@ export function decide(input, env) {
 								`${KEY_FILES_REASON} This search starts at ${root}, which contains the agx directory; search a narrower path.`,
 							)
 						: ask(
-								`elladex-agx: this search has no path, so it starts at the working directory ${root}, which contains agx's private files (~/.agx: the secret key, the API key and the allowlist). Approve only if its results can't include them; otherwise ask Claude to search a narrower path.`,
+								`elladex-agx: this search has no path, so it starts at the working directory ${root}, which contains agx's private files (~/.agx: the secret key, the allowlist and the login key in credentials.json). Approve only if its results can't include them; otherwise ask Claude to search a narrower path.`,
 							);
 				}
 			}
 			return null;
 		}
 		default: {
-			// PowerShell under another name, and MCP tools such as a terminal
-			// that runs a command in the user's own shell.
+			// PowerShell under another name, MCP tools such as a terminal that
+			// runs a command in the user's own shell, and browser tools that
+			// open a URL, including inside a batch of actions
+			// (`browser_batch`'s `actions[].input.url`).
 			/** @type {(Verdict | null)[]} */
 			const verdicts = [];
-			for (const [key, value] of Object.entries(toolInput)) {
-				if (typeof value !== "string") {
-					continue;
-				}
+			const inputs = stringInputs(toolInput);
+			// A file tool writing a shell startup file: its text is a command
+			// line a later shell runs, as with Write and Edit.
+			const writesStartup = inputs.some(
+				([key, value]) => PATH_KEYS.has(key) && isShellStartupFile(value),
+			);
+			for (const [key, value] of inputs) {
 				if (COMMAND_KEYS.has(key)) {
 					verdicts.push(decideCommand(value, mode, ctx));
-				} else if (PATH_KEYS.has(key) && inAgxDir(value)) {
-					verdicts.push(deny(KEY_FILES_REASON));
+				} else if (PATH_KEYS.has(key)) {
+					if (inAgxDir(value)) {
+						verdicts.push(deny(KEY_FILES_REASON));
+					}
+				} else if (URL_KEYS.has(key)) {
+					if (isDeviceApprovalUrl(value)) {
+						verdicts.push(deny(DEVICE_PAGE_REASON));
+					} else if (isListingManageUrl(value)) {
+						verdicts.push(ask(LISTING_PAGE_REASON));
+					}
+				} else if (writesStartup) {
+					verdicts.push(decideCommand(value, mode, ctx));
 				}
 			}
 			return strongest(verdicts);

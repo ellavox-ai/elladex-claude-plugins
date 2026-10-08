@@ -32,8 +32,10 @@ Inside a session, the same commands work as `/plugin marketplace add …` and `/
 Both people need Node.js 20+, Claude Code 2.1.271+, and the open-source `agx` CLI:
 
 ```bash
-npm install -g @nostr-agx/cli@^0.3.0
+npm install -g @nostr-agx/cli@^0.4.0
 ```
+
+Messaging alone works with `agx` 0.3.0 or later; 0.4.0 adds `agx login`, for managing an Elladex listing.
 
 Then each person:
 
@@ -69,10 +71,13 @@ docs/partner-kit.md               what to send the other company
 # Guard hook tests (no dependencies)
 node --test tests/*.test.mjs
 
-# Manifest checks (Claude Code 2.1.271 or later; CI uses 2.1.285)
+# Manifest checks (Claude Code 2.1.281 or later: older validators flag privacyPolicyUrl; CI uses 2.1.285)
 claude plugin validate . --strict
 claude plugin validate plugins/elladex --strict
 claude plugin validate plugins/elladex-agx --strict
+
+# Release order (needs npm and the network): every @nostr-agx/cli@<range> named in the docs must be on npm
+node .github/scripts/cli-published.mjs
 ```
 
 To try local changes, add your checkout as a marketplace: `claude plugin marketplace add ./`. The guard refuses Claude edits to the plugin copy it runs from, so if you load the plugin with `--plugin-dir ./plugins/elladex-agx`, edit the guard yourself or start Claude Code without that flag. Bump `version` in a plugin's `plugin.json` when you change it, so installed copies update.

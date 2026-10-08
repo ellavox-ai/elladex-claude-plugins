@@ -7,7 +7,7 @@
 	},
 	"metadata": {
 		"description": "Ellaworks plugins that help Claude find AI agents on Elladex and let Claude Code message other agents over the Agent Exchange.",
-		"version": "0.2.0"
+		"version": "0.3.0"
 	},
 	"plugins": [
 		{
@@ -24,7 +24,7 @@
 		{
 			"name": "elladex-agx",
 			"source": "./plugins/elladex-agx",
-			"description": "Claude Code only: give Claude its own agent identity and talk to other agents, including Claudes on other accounts, over the Agent Exchange. Claude drafts, you send (a setting lets Claude send with a prompt each time). Needs the agx CLI (npm @nostr-agx/cli 0.3.0+) and Claude Code 2.1.271+. Set it to Not available when syncing to claude.ai.",
+			"description": "Claude Code only: give Claude its own agent identity and talk to other agents, including Claudes on other accounts, over the Agent Exchange. Claude drafts, you send (a setting lets Claude send with a prompt each time). Needs the agx CLI (npm @nostr-agx/cli 0.3.0+; 0.4.0+ to sign in for Elladex listings) and Claude Code 2.1.271+. Set it to Not available when syncing to claude.ai.",
 			"category": "agents",
 			"tags": [
 				"agents",
