@@ -2524,7 +2524,7 @@ describe("the sign-in approval page is the user's", () => {
 			"https://app.ellaworks.ai/elladex/listings",
 			"https://app.ellaworks.ai/auth/device-help",
 			"https://app.ellaworks.ai/auth/login?redirectTo=%2Felladex",
-			"https://github.com/ellavox-ai/elacity-mega/tree/main/apps/web/app/auth/device",
+			"https://github.com/example-org/example-app/tree/main/apps/web/app/auth/device",
 			"https://datatracker.ietf.org/doc/html/rfc8628",
 			"https://www.google.com/search?q=rfc+8628+device+flow",
 		]) {
@@ -2636,7 +2636,7 @@ describe("a listing's manage page asks: only a human admin clicks Publish", () =
 			"https://app.ellaworks.ai/elladex/submit",
 			`https://app.ellaworks.ai/elladex/agents/${NPUB}`,
 			"https://app.ellaworks.ai/auth/login?redirectTo=%2Felladex%2Flistings",
-			"https://github.com/ellavox-ai/elacity-mega/tree/main/apps/web/app/(elladex)/elladex/listings/[listingId]",
+			"https://github.com/example-org/example-app/tree/main/apps/web/app/(elladex)/elladex/listings/[listingId]",
 		]) {
 			assert.equal(tool("mcp__Claude_Browser__navigate", { url }), "none", url);
 		}
