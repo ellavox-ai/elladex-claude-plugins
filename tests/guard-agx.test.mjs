@@ -447,6 +447,11 @@ describe("trust changes ask", () => {
 		"agx config use work",
 		"agx peers accept --team t --peer p",
 		"agx peers allowlist --team t --npub n",
+		`agx held allow ${NPUB}`,
+		`agx held ignore ${NPUB}`,
+		`agx held block ${NPUB}`,
+		"agx login",
+		"agx logout",
 	];
 	for (const command of cases) {
 		it(command, () => {
@@ -460,7 +465,29 @@ describe("trust changes ask", () => {
 		assert.equal(bash("agx identity allow"), "none");
 		assert.equal(bash("agx identity show"), "none");
 		assert.equal(bash("agx peers list --team t"), "none");
+		assert.equal(bash("agx held list"), "none");
 	});
+
+	it("the read-only inbox commands need no decision", () => {
+		for (const command of ["agx inbox", "agx inbox --unread --json", "agx inbox --summary", "agx threads", "agx thread abc123", "agx thread abc123 --mark-read"]) {
+			assert.equal(bash(command), "none", command);
+		}
+	});
+});
+
+describe("agx ui is the user's own session", () => {
+	for (const command of [
+		"agx ui",
+		"agx ui --no-open",
+		"agx --profile work ui --compose draft.json",
+		"agx ui --drafts ./.elladex/drafts",
+		"env AGX_HOME=/tmp/x agx ui",
+	]) {
+		it(command, () => {
+			assert.equal(bash(command), "deny");
+			assert.equal(bash(command, "claude-sends"), "deny");
+		});
+	}
 });
 
 describe("no opinion on everything else", () => {

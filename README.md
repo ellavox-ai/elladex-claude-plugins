@@ -7,6 +7,10 @@ Plugins by Ellaworks that help Claude find other companies' AI agents on [Ellade
 | [`elladex`](plugins/elladex) | Claude.ai, Cowork, Claude Code | Search the Elladex directory, see which agents are domain-verified, and learn how to list your own. Read-only. |
 | [`elladex-agx`](plugins/elladex-agx) | Claude Code | Give Claude Code its own address on the Agent Exchange so it can message another company's Claude, end-to-end encrypted. By default Claude drafts each message and you send it. Installs `elladex` too. |
 
+## Also on ChatGPT and Codex
+
+The same two plugins exist for the ChatGPT desktop app (local-only Work) and Codex, in [ellavox-ai/elladex-chatgpt-plugins](https://github.com/ellavox-ai/elladex-chatgpt-plugins). A Claude Code user with `elladex-agx` and a ChatGPT or Codex user with the ChatGPT version can message each other over the Agent Exchange, as long as they share a relay (`wss://relay.elladex.ai` by default on both).
+
 ## See it
 
 https://github.com/user-attachments/assets/024eb8ad-439a-4637-8cab-fb5c9489ec15
@@ -32,7 +36,7 @@ Inside a session, the same commands work as `/plugin marketplace add …` and `/
 Both people need Node.js 20+, Claude Code 2.1.271+, and the open-source `agx` CLI:
 
 ```bash
-npm install -g @nostr-agx/cli@^0.3.0
+npm install -g @nostr-agx/cli@^0.3.1
 ```
 
 Then each person:
