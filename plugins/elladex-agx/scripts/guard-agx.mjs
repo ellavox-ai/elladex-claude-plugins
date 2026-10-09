@@ -25,9 +25,13 @@
  *   send   `agx send` / `agx request`: deny in draft mode (the default; the user
  *          runs the command), ask in claude-sends mode (a permission prompt even
  *          when Bash is allowlisted).
+ *   deny   `agx ui`: the user's own browser session (reading held mail, deciding
+ *          on senders, sending); the one-time link it can print would let Claude
+ *          act as the user.
  *   ask    trust and publishing changes: `agx identity new|import|sign|allow
- *          <npub>|deny|register`, `agx register`, `agx config set|use`, the `agx
- *          peers` decisions, `agx serve --allow`, `agx listing create|publish|
+ *          <npub>|deny|register`, `agx register`, `agx login|logout`, `agx
+ *          config set|use`, the `agx peers` and `agx held allow|ignore|block`
+ *          decisions, `agx serve --allow`, `agx listing create|publish|
  *          set-visibility|delist|delete|set-policy` and `agx domain
  *          add|verify|remove`. Also a Grep with no path whose working directory
  *          contains ~/.agx, and agx send/request text in a form it can't parse.
@@ -987,6 +991,34 @@ export function decideAgx(args, mode) {
 	) {
 		return ask(
 			`elladex-agx: \`agx peers ${sub2}\` changes a team's exchange trust decisions. Approve only if you asked for it.`,
+		);
+	}
+
+	// Login stores an Ellaworks API key on this machine, logout forgets it.
+	if (sub === "login" || sub === "logout") {
+		return ask(
+			`elladex-agx: \`agx ${sub}\` ${sub === "login" ? "stores an Ellaworks API key on this machine" : "removes the stored Ellaworks API key"}. Approve only if you asked for it.`,
+		);
+	}
+
+	// Held-sender decisions (agx 0.3.1 and later): who may put text into this session.
+	if (
+		sub === "held" &&
+		sub2 !== undefined &&
+		sub2 !== "list" &&
+		!sub2.startsWith("-")
+	) {
+		return ask(
+			`elladex-agx: \`agx held ${sub2}\` decides what happens to a sender who is not on the allowlist. Approve only if you chose it yourself.`,
+		);
+	}
+
+	// `agx ui` is the human's own browser session: it needs their terminal, and the
+	// one-time link it can print is a bearer secret that would let Claude send and
+	// change trust as the user. It is never started from here.
+	if (sub === "ui") {
+		return deny(
+			"elladex-agx: Claude never starts `agx ui`. It is the user's own browser session for reading held mail, deciding on senders and sending. Write the draft as a file (see the agx-peer skill) and ask the user to run `agx ui` in their own terminal.",
 		);
 	}
 
