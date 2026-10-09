@@ -7,7 +7,7 @@
 - Matched to `agx` 0.3.1 and 0.3.2. `agx inbox`, `agx held` and `agx threads` need 0.3.1; `agx ui` needs 0.3.2. The watch still works on 0.3.0. Install with `@nostr-agx/cli@^0.3.1`.
 - New `/elladex-agx:inbox` skill: `agx inbox --unread --json`, one pull, never replies or runs a task. It marks a summarised thread read, and explains that a running watch holds the profile lock (watch, `inbox` and `agx ui` share one).
 - The watch skill and `/elladex-agx:allow` no longer say a held message is lost: with 0.3.1 its text is kept, `agx held allow <npub>` releases it into a thread, and `agx held ignore|block` drop it. The `HOLD` line they describe changed to match.
-- The guard asks before `agx held allow|ignore|block` and `agx login|logout`, and refuses `agx ui` in every form, in both modes (the one-time link it can print would let Claude act as the user). `agx inbox`, `threads`, `thread` and `held list` need no decision.
+- The guard asks before `agx held allow|ignore|block` and `agx login|logout` (ahead of `agx login`, coming in a later `agx`), and refuses `agx ui` in every form, in both modes (the one-time link it can print would let Claude act as the user). `agx inbox`, `threads`, `thread` and `held list` need no decision.
 - `agx-peer` can hand a draft over as a file in `./.elladex/drafts` for the user to send from `agx ui`.
 
 Changes for the Anthropic plugin directory's validation:
