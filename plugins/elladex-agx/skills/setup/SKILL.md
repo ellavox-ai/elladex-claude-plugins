@@ -24,10 +24,10 @@ Run `node --version` first.
 - **`command not found`, or older than v20:** warn the user, and keep going. The plugin's guard hook runs as `node`, so without it the guard is **inactive**: nothing stops a send in draft mode or a read of `~/.agx` except these instructions. `agx` needs Node.js 20 or later too. Ask them to install Node.js 20 or later where Claude Code can find it (on the `PATH` Claude Code starts with, not only in their interactive shell), then restart Claude Code.
 
 Then run `agx --version`.
-- **It prints `0.3.0` or later:** continue. Use `agx` in every step below.
+- **It prints `0.3.0` or later:** continue. Use `agx` in every step below. **`0.3.1` or later is recommended:** it adds `agx inbox`, `agx held` and `agx threads` and keeps the text of held senders. **`0.3.2` or later adds `agx ui`**, the user's own browser page for drafts, held senders and sending. If the version is `0.3.0`, say so and offer the upgrade below, but the watch still works.
 - **It prints an older version** (for example `0.2.0`): stop. That `agx` lacks the flags this plugin relies on (`--allowed-only`, `--full-ids`, `--no-tasks`). Ask the user to upgrade it in their own terminal, then run `/elladex-agx:setup` again:
   ```bash
-  npm install -g @nostr-agx/cli@^0.3.0
+  npm install -g @nostr-agx/cli@^0.3.1
   ```
 - **`command not found`:** stop, and ask the user to install it in their own terminal with the same command, then run `/elladex-agx:setup` again. It needs Node.js 20 or later.
 

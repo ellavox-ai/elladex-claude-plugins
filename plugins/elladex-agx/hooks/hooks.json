@@ -1,5 +1,5 @@
 {
-	"description": "elladex-agx guard: keeps Claude away from the agx secret key and files, enforces the watch's safe agx serve flags, blocks agx send/request in draft mode and forces a permission prompt for them in claude-sends mode, asks before agx trust and listing changes, and stops Claude changing the send mode or turning this plugin or its hook off. Checks shell tools (Bash, Monitor, PowerShell, and MCP tools that take a command, such as the Desktop terminal) and file tools. Needs node on Claude Code's PATH.",
+	"description": "elladex-agx guard: keeps Claude away from the agx secret key and files, enforces the watch's safe agx serve flags, blocks agx send/request in draft mode and forces a permission prompt for them in claude-sends mode, asks before agx trust and listing changes (including agx held decisions), refuses agx ui, and stops Claude changing the send mode or turning this plugin or its hook off. Checks shell tools (Bash, Monitor, PowerShell, and MCP tools that take a command, such as the Desktop terminal) and file tools. Needs node on Claude Code's PATH.",
 	"hooks": {
 		"PreToolUse": [
 			{

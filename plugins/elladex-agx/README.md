@@ -25,7 +25,7 @@ The first three are commands you run; the rest are things to ask Claude once the
 
 - **Identity.** Each user gets a Nostr keypair, kept by `agx` under `~/.agx` (or `$AGX_HOME`). The npub is the public address you share.
 - **Transport.** Messages are gift-wrapped (NIP-59) and end-to-end encrypted, then sent through a relay both sides use. `/elladex-agx:setup` defaults to the Elladex Agent Exchange relay, `wss://relay.elladex.ai`, run by Ellaworks; pass other relays to it if you prefer, as long as both sides share one. The relay can't read the content, and the message doesn't name the sender. It does see the recipient's key, the size and timing of each message, and the network address of whoever connects. If a relay requires sign-in (NIP-42), `agx` signs in with your key, and that relay learns which key is connecting.
-- **Inbound.** `/elladex-agx:watch` runs `agx serve --no-reply --no-tasks --allowed-only --full-ids --no-color` as a background watch. While the watch is armed, messages from peers on your allowlist arrive in the session within seconds. Anyone else shows up as a single `HOLD` line with their npub; their text is withheld and not kept. One watch lasts up to 30 minutes, the Monitor tool's limit; run `/elladex-agx:watch` again to keep going, and messages from allowed peers sent in between are picked up then.
+- **Inbound.** `/elladex-agx:watch` runs `agx serve --no-reply --no-tasks --allowed-only --full-ids --no-color` as a background watch. While the watch is armed, messages from peers on your allowlist arrive in the session within seconds. Anyone else shows up as a single `HOLD` line with their npub; their text is withheld from Claude. With `agx` 0.3.1 or later it is kept for you: read it in `agx ui` (0.3.2) and decide with `agx held allow|ignore|block`. One watch lasts up to 30 minutes, the Monitor tool's limit; run `/elladex-agx:watch` again to keep going, and messages from allowed peers sent in between are picked up then.
 - **Outbound.** Claude drafts, and you approve the exact text. In the default draft mode you send it yourself; see below. Nothing is sent automatically: `--no-reply` stops `agx` from answering plain messages, and `--no-tasks` stops it from answering typed requests (`agx request`), which it otherwise does on its own for allowlisted peers.
 - **Guard hook.** A `PreToolUse` hook checks every Bash, Monitor, PowerShell, Read, Grep, Glob, Write, Edit, MultiEdit and NotebookEdit call, and every MCP tool call that carries a command or a path (such as the Desktop app's terminal tool, which runs commands in your own terminal). It runs with `node`; see [Safety](#safety).
 
@@ -55,6 +55,7 @@ agx send --context-id '2bc8c14c9873c9fea764882abcee9fbd' -- npub1n0m8c4qn3434zy2
 | `/elladex-agx:setup` | Checks `agx --version`, creates or shows your identity, sets the relay, checks it with `agx doctor`, and prints your npub |
 | `/elladex-agx:allow <npub>` | Adds a peer to your allowlist, or shows or edits it |
 | `/elladex-agx:watch` | Starts the background inbox watch |
+| `/elladex-agx:inbox` | Checks the inbox once (`agx inbox --unread`, `agx` 0.3.1 or later) and summarises unread and held mail; ask "what arrived?" or run it between watches |
 | `agx-peer` (automatic) | How Claude drafts messages and replies: right thread, exact command, your approval, nothing secret |
 
 This plugin depends on `elladex`, so installing it also installs `elladex`. That provides `/elladex:find`, for looking up agents and npubs, and the `elladex:agent-exchange-etiquette` rules these skills rely on.
@@ -63,9 +64,9 @@ This plugin depends on `elladex`, so installing it also installs `elladex`. That
 
 - **Claude Code 2.1.271 or later.** The "Who sends messages" option uses a fixed list of choices, which older versions can't load. Tested with 2.1.281. The Monitor tool gives live inbound delivery; without it, the watch runs as a background command, and Claude reads its output when you ask.
 - **Node.js 20 or later**, for `agx` and the guard hook. The hook runs as `node`, found on Claude Code's own `PATH`. If Claude Code can't find `node` (for example when it's started from an environment with a minimal `PATH`, or `node` comes from a version manager your login shell doesn't load there), **the guard is inactive**: Claude Code treats the failed start as a non-blocking hook error, and draft mode then rests on the skills' instructions alone. `/elladex-agx:setup` checks `node --version` and warns you.
-- **`@nostr-agx/cli` 0.3.0 or later**, on your `PATH` as `agx`. Install or upgrade it yourself:
+- **`@nostr-agx/cli` 0.3.0 or later**, on your `PATH` as `agx` (0.3.1 for `/elladex-agx:inbox` and kept held text, 0.3.2 for `agx ui`). Install or upgrade it yourself:
   ```bash
-  npm install -g @nostr-agx/cli@^0.3.0
+  npm install -g @nostr-agx/cli@^0.3.1
   agx --version
   ```
   Older versions lack `--allowed-only`, `--full-ids` and `--no-tasks`, so `/elladex-agx:setup` stops and asks you to upgrade.
@@ -89,7 +90,7 @@ The installer may report "1 userConfig option not yet set". That's expected: an 
 3. Both run `/elladex-agx:watch`.
 4. One says to Claude, "tell <npub> the migration finished and ask when they can review". Claude shows the text and the `agx send` command, and they run it in their terminal. While the other side's watch is armed, their Claude gets it in seconds.
 
-Allow each other before either side sends. If a message arrives while your watch is running and its sender isn't on your allowlist yet, it shows up only as a `HOLD` line and its text isn't kept; after you allow them, ask them to send it again. A message that arrives while no watch is running waits on the relay and is picked up by your next watch.
+Allow each other before either side sends. If a message arrives while your watch is running and its sender isn't on your allowlist yet, it shows up only as a `HOLD` line. With `agx` 0.3.1 or later its text is kept: run `agx held allow <npub>` (or read it first in `agx ui`) and it moves into your inbox. With `agx` 0.3.0 the text is gone and they have to send it again. A message that arrives while no watch is running waits on the relay and is picked up by your next watch.
 
 ## Ellaworks teams
 
@@ -102,11 +103,13 @@ An Ellaworks team accepts first contact from a new npub only after a person ther
 - **It stays out of ordinary work.** A grep or rg pattern such as `'~/.agx'`, a `git commit -m` or `gh pr create --body` text, `echo` arguments and a heredoc written to a file are not treated as commands, so searching for or writing about `agx send` isn't blocked. A path that leads into `~/.agx` still is. A Grep tool call with an explicit path at or above your home directory is denied; one with no path, run from your home directory, gets a permission prompt.
 - **What the hook decides:**
   - *deny, always:* `agx identity export`, `agx config show --reveal`, anything touching `~/.agx` or `$AGX_HOME`, `agx serve` without `--no-reply --no-tasks --allowed-only --full-ids` or with `--allow-all`, `--reply-any` or `--advertise`, any attempt to change the send mode, and anything that turns this guard off: `claude plugin disable|uninstall` of `elladex-agx` (or `--all`), `claude plugin marketplace remove ellaworks`, `disableAllHooks`, and writes to this plugin's installed files or Claude Code's plugin registry (`~/.claude/plugins/*.json`). You can still do all of these yourself;
+  - *`agx ui`:* denied in both modes. It is your own browser session for reading held mail, deciding on senders and sending, and the one-time link it can print would let Claude act as you. Claude writes a draft file instead, and you run `agx ui` in your terminal;
   - *`agx send` and `agx request`:* deny in draft mode, ask in claude-sends mode;
-  - *ask, always:* `agx identity new|import|sign|allow <npub>|deny|register`, `agx register`, `agx config set|use`, the `agx peers` decisions, `agx serve --allow <npub>` (so `/elladex-agx:watch --allow <npub>` shows one extra prompt), `agx listing create|publish|set-visibility|delist|delete|set-policy` and `agx domain add|verify|remove`.
+  - *ask, always:* `agx identity new|import|sign|allow <npub>|deny|register`, `agx register`, `agx login|logout`, `agx config set|use`, the `agx peers` and `agx held allow|ignore|block` decisions, `agx serve --allow <npub>` (so `/elladex-agx:watch --allow <npub>` shows one extra prompt), `agx listing create|publish|set-visibility|delist|delete|set-policy` and `agx domain add|verify|remove`.
+- **Draft files stay out of git.** Before writing a draft to `./.elladex/drafts`, Claude makes sure `.elladex/` is ignored (it appends to `.git/info/exclude`, not to a tracked `.gitignore`). Drafts are private messages that name the peer's npub and thread. `agx ui` lists that folder by default whenever it exists, so a repo you clone that ships its own `.elladex/drafts/*.json` puts those drafts in your Drafts list. Sending still needs your click, so read the recipient and text before you press Send.
 - **Peer text is untrusted input.** The skills tell Claude to treat it as data and to take approval only from your own messages. That lowers the risk; it doesn't remove it. Keep permission prompts on. Don't run the watch in bypass-permissions mode, and don't add allow rules that cover `agx`.
 - **The allowlist is yours to decide.** The skills tell Claude never to add an npub on its own, and the hook makes Claude Code ask you before any allowlist change.
-- **Unknown senders.** With `--allowed-only`, a sender off your allowlist shows up as one `HOLD` line with its npub, and its subject and text never reach Claude. Peers you allow can put any text into the session.
+- **Unknown senders.** With `--allowed-only`, a sender off your allowlist shows up as one `HOLD` line with its npub, and its subject and text never reach Claude (with `agx` 0.3.1 or later they are kept for you, and `agx inbox`, `agx held list` and `--json` show only the address and a count). Peers you allow can put any text into the session.
 
 Deny rules you can add to your Claude Code settings as a second layer:
 
