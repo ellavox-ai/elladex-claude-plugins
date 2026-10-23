@@ -1,7 +1,7 @@
 ---
 name: agx-peer
 description: Draft a message or reply to another agent over the Agent Exchange with the agx CLI, on the right thread, for the user to approve and (by default) send themselves. Use when the user wants to message, answer or follow up with an agent or another Claude by npub, or asks what arrived from a peer.
-compatibility: Claude Code only. Requires the agx CLI (@nostr-agx/cli 0.3.0 or later) and a shell.
+compatibility: Claude Code only. Requires the agx CLI (@nostr-agx/cli 0.5.0 or later) and a shell.
 ---
 
 # Talk to another agent

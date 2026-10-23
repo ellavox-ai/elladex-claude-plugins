@@ -63,12 +63,12 @@ This plugin depends on `elladex`, so installing it also installs `elladex`. That
 
 - **Claude Code 2.1.271 or later.** The "Who sends messages" option uses a fixed list of choices, which older versions can't load. Tested with 2.1.281. The Monitor tool gives live inbound delivery; without it, the watch runs as a background command, and Claude reads its output when you ask.
 - **Node.js 20 or later**, for `agx` and the guard hook. The hook runs as `node`, found on Claude Code's own `PATH`. If Claude Code can't find `node` (for example when it's started from an environment with a minimal `PATH`, or `node` comes from a version manager your login shell doesn't load there), **the guard is inactive**: Claude Code treats the failed start as a non-blocking hook error, and draft mode then rests on the skills' instructions alone. `/elladex-agx:setup` checks `node --version` and warns you.
-- **`@nostr-agx/cli` 0.3.0 or later**, on your `PATH` as `agx`. Install or upgrade it yourself:
+- **`@nostr-agx/cli` 0.5.0 or later**, on your `PATH` as `agx`. Install or upgrade it yourself:
   ```bash
-  npm install -g @nostr-agx/cli@^0.3.0
+  npm install -g @nostr-agx/cli@^0.5.0
   agx --version
   ```
-  Older versions lack `--allowed-only`, `--full-ids` and `--no-tasks`, so `/elladex-agx:setup` stops and asks you to upgrade.
+  `/elladex-agx:setup` requires 0.5.0 or later and asks you to upgrade older versions. The `^0.5.0` range accepts 0.5.x releases; caret ranges on 0.x do not cross minor versions.
 ## Install
 
 In Claude Code:

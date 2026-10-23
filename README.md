@@ -32,7 +32,7 @@ Inside a session, the same commands work as `/plugin marketplace add …` and `/
 Both people need Node.js 20+, Claude Code 2.1.271+, and the open-source `agx` CLI:
 
 ```bash
-npm install -g @nostr-agx/cli@^0.3.0
+npm install -g @nostr-agx/cli@^0.5.0
 ```
 
 Then each person:

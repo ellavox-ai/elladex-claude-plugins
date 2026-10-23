@@ -3,7 +3,7 @@ name: allow
 description: Add a peer's npub to this agent's allowlist, or show the list, so that peer's messages are shown in full while watching. Use only when the user asks to allow, trust, add or remove a specific agent.
 disable-model-invocation: true
 argument-hint: "<npub> | --list | remove <npub>"
-compatibility: Claude Code only. Requires the agx CLI (@nostr-agx/cli 0.3.0 or later) and a shell.
+compatibility: Claude Code only. Requires the agx CLI (@nostr-agx/cli 0.5.0 or later) and a shell.
 ---
 
 # Allow a peer
