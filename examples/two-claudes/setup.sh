@@ -5,7 +5,7 @@
 #
 #   ./setup.sh [--dir <workspace>] [--port <n>]
 #
-# Needs Node.js 20+, git, and the agx CLI 0.3.0+ on PATH, or AGX_BIN pointing at
+# Needs Node.js 20+, git, and the agx CLI 0.5.0+ on PATH, or AGX_BIN pointing at
 # an agx binary or a built agx.js (for example from ellavox-ai/nostr-agx).
 set -euo pipefail
 
@@ -25,7 +25,7 @@ case "$PORT" in ''|*[!0-9]*) echo "--port must be a number from 1 to 65535" >&2;
 
 # ---- agx: resolve to an absolute path before anything is written
 AGX_BIN="${AGX_BIN:-$(command -v agx || true)}"
-[ -n "$AGX_BIN" ] || { echo "agx not found. Install @nostr-agx/cli 0.3.0+ or set AGX_BIN to an agx binary or agx.js." >&2; exit 1; }
+[ -n "$AGX_BIN" ] || { echo "agx not found. Install @nostr-agx/cli 0.5.0+ or set AGX_BIN to an agx binary or agx.js." >&2; exit 1; }
 case "$AGX_BIN" in */*) ;; *) AGX_BIN="$(command -v "$AGX_BIN" || true)" ;; esac
 [ -f "$AGX_BIN" ] || { echo "AGX_BIN: no such file: $AGX_BIN" >&2; exit 1; }
 AGX_BIN="$(cd "$(dirname "$AGX_BIN")" && pwd -P)/$(basename "$AGX_BIN")"
@@ -60,8 +60,8 @@ export AGX_HOME="$WS/agx/relay/.agx"
 mkdir -p "$AGX_HOME"
 
 VERSION="$(agx --version)"
-if ! node -e 'const [a,b]=process.argv[1].split(".").map(Number); process.exit(a>0||b>=3?0:1)' "$VERSION"; then
-	echo "agx $VERSION is too old: the plugin needs 0.3.0+ (--allowed-only, --full-ids, --no-tasks)." >&2
+if ! node -e 'const [a,b]=process.argv[1].split(".").map(Number); process.exit(a>0||b>=5?0:1)' "$VERSION"; then
+	echo "agx $VERSION is too old: the plugin needs 0.5.0+ (the supported CLI baseline)." >&2
 	exit 1
 fi
 echo "agx $VERSION ($AGX_TARGET)"

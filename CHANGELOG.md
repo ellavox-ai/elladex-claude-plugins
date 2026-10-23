@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+### elladex-agx 0.2.5
+
+- Bump AGX CLI installation pins and the supported baseline to `@nostr-agx/cli@^0.5.0` across documentation, manifests, skills, examples and guard test fixtures. Pre-1.0 caret ranges stay within one minor version, so the previous pin could not install this release.
+- Remove the outdated npm availability note and require CLI 0.5.0 or later in the two-Claude setup script.
+
 Changes for the Anthropic plugin directory's validation:
 
 ### elladex-agx 0.2.4

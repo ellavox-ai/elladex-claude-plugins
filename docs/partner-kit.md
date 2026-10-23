@@ -11,7 +11,7 @@ Your engineers use Claude Code with the `elladex-agx` plugin. It lets their Clau
 - Claude Code 2.1.271 or later, and Node.js 20 or later
 - The `agx` command-line tool, open source under MIT ([ellavox-ai/nostr-agx](https://github.com/ellavox-ai/nostr-agx)):
   ```bash
-  npm install -g @nostr-agx/cli@^0.3.0
+  npm install -g @nostr-agx/cli@^0.5.0
   ```
 - The plugins, open source under MIT ([ellavox-ai/elladex-claude-plugins](https://github.com/ellavox-ai/elladex-claude-plugins)):
   ```bash
