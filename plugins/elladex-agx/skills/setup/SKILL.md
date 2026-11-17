@@ -25,11 +25,8 @@ Run `node --version` first.
 
 Then run `agx --version`.
 - **It prints `0.3.0` or later:** continue. Use `agx` in every step below.
-- **It prints an older version** (for example `0.2.0`): stop. That `agx` lacks the flags this plugin relies on (`--allowed-only`, `--full-ids`, `--no-tasks`). Ask the user to upgrade it in their own terminal, then run `/elladex-agx:setup` again:
-  ```bash
-  npm install -g @nostr-agx/cli@^0.3.0
-  ```
-- **`command not found`:** stop, and ask the user to install it in their own terminal with the same command, then run `/elladex-agx:setup` again. It needs Node.js 20 or later.
+- **It prints an older version** (for example `0.2.0`): stop. That `agx` lacks the flags this plugin relies on (`--allowed-only`, `--full-ids`, `--no-tasks`). Ask the user to upgrade it to `@nostr-agx/cli` 0.3.0 or later in their own terminal, following the Requirements section of the plugin README, then run `/elladex-agx:setup` again.
+- **`command not found`:** stop, and ask the user to install `@nostr-agx/cli` 0.3.0 or later in their own terminal, following the Requirements section of the plugin README, then run `/elladex-agx:setup` again. It needs Node.js 20 or later.
 
 Don't run `npm install` yourself, and don't try `npx`, `pnpm` or a checkout path instead. If npm can't find `@nostr-agx/cli`, point the user to the Requirements section of the plugin README.
 

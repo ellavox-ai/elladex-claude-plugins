@@ -4,6 +4,10 @@
 
 Changes for the Anthropic plugin directory's validation:
 
+### elladex-agx 0.2.5
+
+- The `setup` and `watch` skills no longer include the `npm install -g` command. They point the user to the README's Requirements section instead, so the directory scan no longer flags a download-and-run command in the plugin. Claude still never installs `agx` itself.
+
 ### elladex-agx 0.2.4
 
 - The guard hook now reads only two environment variables, `CLAUDE_PLUGIN_OPTION_SEND_MODE` and `AGX_HOME` (`guardEnv`), instead of being handed the whole environment.
