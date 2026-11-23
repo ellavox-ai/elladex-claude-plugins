@@ -20,7 +20,7 @@ A 100-second dramatization: a marketplace in Austin and a carrier in Berlin work
 ```bash
 claude plugin marketplace add ellavox-ai/elladex-claude-plugins
 claude plugin install elladex@ellaworks        # directory search
-claude plugin install elladex-agx@ellaworks    # messaging (also installs elladex)
+claude plugin install elladex-agx@ellaworks    # messaging
 ```
 
 Inside a session, the same commands work as `/plugin marketplace add …` and `/plugin install …`.
@@ -37,11 +37,11 @@ npm install -g @nostr-agx/cli@^0.3.0
 
 Then each person:
 
-1. Installs `elladex-agx` and runs `/elladex-agx:setup`, which prints their address (an npub).
+1. Installs `elladex-agx` and `elladex`, runs `/elladex-agx:setup`, which prints their address (an npub), and adds the Claude Code permission rules it shows to their own settings.
 2. Swaps addresses with the other person and runs `/elladex-agx:allow <their npub>`.
 3. Runs `/elladex-agx:watch` to open the inbox.
 
-Now ask Claude to message the other side. By default Claude shows you the exact text and command, and you send it. Allow each other before either of you sends: while your watch is running, a message from someone you haven't allowed shows up as one `HOLD` line with their address, and its text never reaches Claude and isn't kept, so after you allow them they have to send it again. See the [`elladex-agx` README](plugins/elladex-agx/README.md) for how the guard, the relay and the send modes work.
+Now ask Claude to message the other side. By default Claude shows you the exact text and command, and you send it. Allow each other before either of you sends: while your watch is running, a message from someone you haven't allowed shows up as one `HOLD` line with their address, and its text never reaches Claude and isn't kept, so after you allow them they have to send it again. See the [`elladex-agx` README](plugins/elladex-agx/README.md) for how the permission rules, the relay and the send modes work.
 
 ## Examples
 
@@ -57,8 +57,7 @@ Now ask Claude to message the other side. By default Claude shows you the exact 
 ```
 .claude-plugin/marketplace.json   the "ellaworks" marketplace
 plugins/elladex/                  directory search: skills, a subagent, the Elladex connector
-plugins/elladex-agx/              Agent Exchange messaging: skills and a PreToolUse guard hook
-tests/                            the guard hook's tests (kept out of the shipped plugin)
+plugins/elladex-agx/              Agent Exchange messaging: skills only
 examples/                         two-claudes simulation, a recorded exchange, team setup
 docs/partner-kit.md               what to send the other company
 ```
@@ -66,20 +65,17 @@ docs/partner-kit.md               what to send the other company
 ## Development
 
 ```bash
-# Guard hook tests (no dependencies)
-node --test tests/*.test.mjs
-
 # Manifest checks (Claude Code 2.1.271 or later; CI uses 2.1.285)
 claude plugin validate . --strict
 claude plugin validate plugins/elladex --strict
 claude plugin validate plugins/elladex-agx --strict
 ```
 
-To try local changes, add your checkout as a marketplace: `claude plugin marketplace add ./`. The guard refuses Claude edits to the plugin copy it runs from, so if you load the plugin with `--plugin-dir ./plugins/elladex-agx`, edit the guard yourself or start Claude Code without that flag. Bump `version` in a plugin's `plugin.json` when you change it, so installed copies update.
+To try local changes, add your checkout as a marketplace: `claude plugin marketplace add ./`, or load one plugin with `--plugin-dir ./plugins/elladex-agx`. Bump `version` in a plugin's `plugin.json` when you change it, so installed copies update.
 
 ## Security
 
-The guard hook is a backstop, not a sandbox; its known gaps are listed in the [`elladex-agx` README](plugins/elladex-agx/README.md#safety) and pinned by its tests. To report a vulnerability, see [SECURITY.md](SECURITY.md).
+The plugins ship no hooks or scripts. `elladex-agx` relies on Claude Code permission rules you add yourself and on its skills' instructions; their known gaps are listed in the [`elladex-agx` README](plugins/elladex-agx/README.md#safety). To report a vulnerability, see [SECURITY.md](SECURITY.md).
 
 ## License
 

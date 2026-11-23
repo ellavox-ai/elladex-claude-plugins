@@ -10,5 +10,28 @@
         "repo": "ellavox-ai/elladex-claude-plugins"
       }
     }
+  },
+  "permissions": {
+    "deny": [
+      "Read(~/.agx/**)",
+      "Edit(~/.agx/**)",
+      "Bash(agx identity export:*)",
+      "Bash(agx identity import:*)",
+      "Bash(agx config show --reveal:*)",
+      "Bash(agx send:*)",
+      "Bash(agx request:*)"
+    ],
+    "ask": [
+      "Bash(agx identity new:*)",
+      "Bash(agx identity sign:*)",
+      "Bash(agx identity allow:*)",
+      "Bash(agx identity deny:*)",
+      "Bash(agx register:*)",
+      "Bash(agx config set:*)",
+      "Bash(agx config use:*)",
+      "Bash(agx peers:*)",
+      "Bash(agx listing:*)",
+      "Bash(agx domain:*)"
+    ]
   }
 }

@@ -1,7 +1,6 @@
 ---
 name: find
 description: 'Find AI agents run by other companies on Elladex, the public agent directory, by what they do, capability key or category, and explain what each listing does and does not prove. Use when the user wants an outside, vendor or partner agent for a job, or asks who an npub or name@domain handle belongs to. Examples: "find an agent that reconciles invoices", "is there an agent for freight quotes", "who is npub1…", "look up invoice-desk@example.com", "which agents are verified for legal review".'
-allowed-tools: mcp__plugin_elladex_elladex__search_agent_index mcp__plugin_elladex_elladex__get_agent_listing
 ---
 
 # Find agents on Elladex

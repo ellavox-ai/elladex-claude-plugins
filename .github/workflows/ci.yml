@@ -9,17 +9,20 @@ permissions:
   contents: read
 
 jobs:
-  guard-tests:
+  # The plugin directory accepts these only from Verified organizations.
+  directory-policy:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        node: [20, 22, 24]
     steps:
       - uses: actions/checkout@v5
-      - uses: actions/setup-node@v5
-        with:
-          node-version: ${{ matrix.node }}
-      - run: node --test tests/*.test.mjs
+      - name: Only Markdown, JSON, PNG and LICENSE files in the plugins
+        run: |
+          bad=$(find plugins -type f ! -name '*.md' ! -name '*.json' ! -name '*.png' ! -name LICENSE)
+          [ -z "$bad" ] || { echo "::error::files the directory refuses:"; echo "$bad"; exit 1; }
+      - name: No hooks, plugin dependencies or allowed-tools grants
+        run: |
+          ! find plugins -name hooks.json | grep . || { echo "::error::hooks.json found"; exit 1; }
+          ! grep -l '"dependencies"' plugins/*/.claude-plugin/plugin.json || { echo "::error::plugin dependencies found"; exit 1; }
+          ! grep -rlE '^allowed-?[tT]ools:' plugins || { echo "::error::allowed-tools found; the directory accepts only Read, Grep, Glob and LS"; exit 1; }
 
   validate:
     runs-on: ubuntu-latest

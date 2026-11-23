@@ -9,10 +9,11 @@ From the repository root, in your shell:
 ```bash
 claude plugin marketplace add ellavox-ai/elladex-claude-plugins --scope project
 claude plugin install elladex-agx@ellaworks --scope project
+claude plugin install elladex@ellaworks --scope project
 git add .claude/settings.json && git commit -m "chore: Elladex plugins for Claude Code"
 ```
 
-That writes the [`.claude/settings.json`](.claude/settings.json) in this folder. You can also copy it in by hand and merge it with any settings you already have:
+That writes the plugin half of the [`.claude/settings.json`](.claude/settings.json) in this folder. Add the `permissions` block yourself: it's the rules from the [`elladex-agx` README](../../plugins/elladex-agx/README.md#permission-rules), so everyone in the repository gets them. You can also copy the whole file in by hand and merge it with any settings you already have:
 
 ```json
 {
@@ -27,6 +28,29 @@ That writes the [`.claude/settings.json`](.claude/settings.json) in this folder.
         "repo": "ellavox-ai/elladex-claude-plugins"
       }
     }
+  },
+  "permissions": {
+    "deny": [
+      "Read(~/.agx/**)",
+      "Edit(~/.agx/**)",
+      "Bash(agx identity export:*)",
+      "Bash(agx identity import:*)",
+      "Bash(agx config show --reveal:*)",
+      "Bash(agx send:*)",
+      "Bash(agx request:*)"
+    ],
+    "ask": [
+      "Bash(agx identity new:*)",
+      "Bash(agx identity sign:*)",
+      "Bash(agx identity allow:*)",
+      "Bash(agx identity deny:*)",
+      "Bash(agx register:*)",
+      "Bash(agx config set:*)",
+      "Bash(agx config use:*)",
+      "Bash(agx peers:*)",
+      "Bash(agx listing:*)",
+      "Bash(agx domain:*)"
+    ]
   }
 }
 ```
@@ -45,7 +69,8 @@ Messaging runs in Claude Code only. Directory search (`elladex`) also works in C
 ## What a repository can't change
 
 - **The send mode stays each person's choice.** `send_mode` is stored in `pluginConfigs`, which Claude Code reads only from user or managed settings. A committed project file can't switch a teammate to `claude-sends`, so everyone starts in draft mode: Claude drafts, the person sends.
-- **Claude won't rewrite this file wholesale.** The `elladex-agx` guard refuses a Claude edit of a settings file that names `elladex-agx`, and a full rewrite of one that already holds its entries, so Claude can't turn the plugin off. Edit this file yourself, or ask Claude for a targeted change that leaves those entries alone.
+- **A committed `deny` wins.** Claude Code applies a `deny` rule from any settings file, so `Bash(agx send:*)` and `Bash(agx request:*)` here keep everyone in this repository in draft mode, whatever their own send mode. Leave those two rules out of this file if teammates may use `claude-sends`; each person then adds them to their own user settings.
+- **Review changes to this file.** The plugin ships no hook, so nothing stops a Claude edit that loosens these rules except Claude Code's own prompt before it edits a settings file. Read such an edit before you accept it.
 
 ## For a whole company
 

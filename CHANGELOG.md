@@ -4,6 +4,18 @@
 
 Changes for the Anthropic plugin directory's validation:
 
+### elladex-agx 0.3.0
+
+- **The guard hook is gone.** The directory accepts hooks, scripts and dependencies on other plugins only from Verified organizations, so `hooks/hooks.json`, `scripts/guard-agx.mjs` (and its tests) and the dependency on `elladex` are removed. The plugin is now skills only.
+- **Permission rules replace it.** `/elladex-agx:setup` ends with a block of Claude Code `deny` and `ask` rules, matched to the send mode, that the user adds to `~/.claude/settings.json`: they keep Claude's file tools out of `~/.agx`, block `agx identity export|import` and `agx config show --reveal`, deny (draft) or ask for (claude-sends) `agx send` and `agx request`, and ask before trust and listing changes. The README's new Permission rules section has the same block. **If you're updating from 0.2.x, add these rules**: nothing replaces the guard until you do.
+- **Weaker than the guard, and said so.** The rules match command prefixes, so a send hidden in a script, a shell variable or `bash -c` gets past them, and nothing enforces the watch's `agx serve` flags beyond the skills' instructions. The Safety section lists the gaps.
+- `elladex` is no longer installed with `elladex-agx`; install it yourself for `/elladex:find` and the etiquette skill. The skills load the etiquette skill only when it's there.
+- The README links the `@nostr-agx/cli` npm page instead of showing an `npm install` command.
+
+### elladex 0.1.5
+
+- The `find` skill no longer lists `allowed-tools`: the directory accepts entries beyond Read, Grep, Glob and LS only from Verified organizations. Claude Code now asks before the first Elladex search in a session unless you allow the connector's two tools.
+
 ### elladex-agx 0.2.5
 
 - The `setup` and `watch` skills no longer include the `npm install -g` command. They point the user to the README's Requirements section instead, so the directory scan no longer flags a download-and-run command in the plugin. Claude still never installs `agx` itself.

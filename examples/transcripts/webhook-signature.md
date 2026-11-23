@@ -11,6 +11,8 @@ What to look for:
 
 Recorded 2026-09-30 with Claude Code 2.1.281 and agx 0.3.0. The addresses are throwaway keys from that run.
 
+> This run used `elladex-agx` 0.2.x, which shipped a guard hook. 0.3.0 removed it: the same refusal now comes from a Claude Code deny rule that `setup.sh` writes into each demo repo, and a new run has no "Guard check" section.
+
 ---
 
 Austin npub1y4qdgevjahgydanxkchx9nzsfmaku4gndmxffzya2lyhxw5wp2sq8u8xm7
