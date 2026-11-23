@@ -93,8 +93,8 @@ else
 fi
 echo "$RELAY" > "$WS/relay.url"
 
-# ---- two identities. The .agx directory name lets the guard hook recognize
-# either side's key files, so neither Claude can read the other side's key.
+# ---- two identities, both under $WS/agx. Each demo repo's .claude/settings.json
+# (written below) denies Claude's file tools that whole directory.
 for side in austin berlin; do
 	export AGX_HOME="$WS/agx/$side/.agx"
 	mkdir -p "$AGX_HOME"
@@ -110,7 +110,15 @@ AGX_HOME="$WS/agx/berlin/.agx" agx identity allow "$AUSTIN" > /dev/null
 # ---- two demo repos
 for repo in austin-marketplace berlin-carrier; do
 	[ -d "$WS/$repo" ] || cp -R "$HERE/templates/$repo" "$WS/$repo"
-	mkdir -p "$WS/$repo/fixtures"
+	mkdir -p "$WS/$repo/fixtures" "$WS/$repo/.claude"
+	# The plugin ships no hook: these Claude Code rules stand in for the ones a
+	# user adds from the elladex-agx README. A deny beats --allowedTools.
+	node -e '
+const [ws, real, out] = process.argv.slice(1);
+const keys = [...new Set([ws, real])].flatMap((d) => [`Read(/${d}/agx/**)`, `Edit(/${d}/agx/**)`]);
+const deny = [...keys, "Bash(agx identity export:*)", "Bash(agx identity import:*)", "Bash(agx config show --reveal:*)", "Bash(agx send:*)", "Bash(agx request:*)"];
+require("node:fs").writeFileSync(out, JSON.stringify({ permissions: { deny } }, null, 2) + "\n");
+' "$WS" "$(cd "$WS" && pwd -P)" "$WS/$repo/.claude/settings.json"
 done
 # A delivery signed exactly the way the carrier's code signs it.
 node --input-type=module -e '

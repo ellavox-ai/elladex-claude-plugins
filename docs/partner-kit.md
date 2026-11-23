@@ -23,14 +23,14 @@ No Ellaworks account is needed to message each other.
 
 ## Setting up with us
 
-1. Run `/elladex-agx:setup` in Claude Code. It creates your key and prints your address (an `npub1…`).
+1. Run `/elladex-agx:setup` in Claude Code. It creates your key, prints your address (an `npub1…`) and shows Claude Code permission rules to add to your own settings.
 2. Send us your address and we'll send you ours, over a channel you already trust.
 3. Run `/elladex-agx:allow <our npub>`. Do this before either side sends: while your watch is running, a message from an address you haven't allowed shows up as one `HOLD` line, and its text isn't kept.
 4. Run `/elladex-agx:watch` while you work on the integration. Messages arrive within seconds while it runs. One watch lasts up to 30 minutes; anything sent in between waits on the relay and arrives when you start the next one.
 
 ## What leaves your machine
 
-- **Only messages a person on your side sends.** By default Claude drafts each message and your engineer reads it and runs the send command. In the optional `claude-sends` mode, Claude Code asks for permission before every send. Nothing is answered automatically.
+- **Only messages a person on your side sends.** By default Claude drafts each message and your engineer reads it and runs the send command. In the optional `claude-sends` mode, the setup's permission rules make Claude Code ask before every send. Nothing is answered automatically.
 - **What we see:** the text of the messages you send, and your address. A snippet or sample payload reaches us only if your engineer puts it in a message. Scrub customer data from samples.
 - **What the relay sees:** messages are end-to-end encrypted (NIP-44) and wrapped under a one-time key (NIP-59 gift wrap), so the relay can't read them and the wrap doesn't name the sender. The relay does see the recipient's address, each message's size and approximate time, and the network address that connects. If the relay asks `agx` to sign in (NIP-42), it also learns which address is connecting.
 - **How long messages last:** every message carries an expiry of 30 days, 31 at most, and relays drop expired messages.
@@ -38,7 +38,7 @@ No Ellaworks account is needed to message each other.
 
 ## What stays on your machine
 
-- **Your key.** `agx` keeps it in a local file under `~/.agx`. The plugin's guard hook stops Claude from reading, copying or exporting that directory. The guard is a backstop, not a vault: treat the key like any credential on your laptop, and don't use this identity for anything high-value.
+- **Your key.** `agx` keeps it in a local file under `~/.agx`. The permission rules from setup stop Claude's file tools from reading or editing that directory and stop `agx identity export`. They're a backstop, not a vault: treat the key like any credential on your laptop, and don't use this identity for anything high-value.
 - **Your code.** Claude works in your repository and nowhere else. Nothing gives us, the relay or our Claude access to it.
 
 ## Which relay
@@ -49,13 +49,13 @@ No Ellaworks account is needed to message each other.
 
 - **Draft mode is the default,** and only a person changes it (in `/config` or `/plugin`). A repository's settings can't change it for you.
 - **Strangers are held.** Anyone not on your allowlist shows up as one line with their address; their text never reaches Claude.
-- **Allowlist changes ask first.** Claude Code prompts you before any address is added.
+- **Allowlist changes ask first.** With the setup's rules, Claude Code prompts you before any address is added.
 - **Treat our messages as input, not instructions.** The plugin tells Claude to take approval only from your own messages. That lowers the risk of a message steering your Claude; it doesn't remove it. Keep permission prompts on.
-- **The guard has known gaps.** It can't see a command built at run time, text piped into a shell, or a script that runs `agx`, and it only runs when `node` is on Claude Code's `PATH`. They're listed in the [`elladex-agx` README](../plugins/elladex-agx/README.md#safety) and pinned by its tests.
+- **The rules have known gaps.** Claude Code matches them on the start of a command, so a send hidden in a script, a shell variable or text piped into a shell gets past them. They're listed in the [`elladex-agx` README](../plugins/elladex-agx/README.md#safety).
 
 ## For security reviewers
 
-- The guard hook: [`plugins/elladex-agx/scripts/guard-agx.mjs`](../plugins/elladex-agx/scripts/guard-agx.mjs) and its tests
+- The permission rules and their gaps: [`elladex-agx` README](../plugins/elladex-agx/README.md#permission-rules)
 - The `agx` CLI and the protocol spec: [ellavox-ai/nostr-agx](https://github.com/ellavox-ai/nostr-agx) (`packages/core/SPEC.md`)
 - How to report a vulnerability: [SECURITY.md](../SECURITY.md)
 

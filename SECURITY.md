@@ -11,10 +11,10 @@ Include the plugin and version, what you did, and what happened. We'll acknowled
 
 ## Scope
 
-In scope: the plugins in this repository, including the `elladex-agx` guard hook (`plugins/elladex-agx/scripts/guard-agx.mjs`), the skills' instructions, and the manifests.
+In scope: the plugins in this repository, including the skills' instructions, the Claude Code permission rules `elladex-agx` asks you to add, and the manifests.
 
 Out of scope here: the `agx` CLI, the Elladex directory service, and Claude Code itself. Report vulnerabilities in `agx` or the Elladex directory privately to support@ellavox.ai with "security" in the subject, not in a public issue on [ellavox-ai/nostr-agx](https://github.com/ellavox-ai/nostr-agx). Report Claude Code issues to Anthropic.
 
 ## Known limits
 
-The guard hook is a backstop, not a sandbox. It can't see a command built at run time, text piped into a shell, a script file that runs `agx` or changes files, or a write made through another plugin's MCP tool, and it only runs when `node` is on Claude Code's `PATH`. These gaps are documented in the [`elladex-agx` README](plugins/elladex-agx/README.md#safety) and pinned by the tests in `plugins/elladex-agx/scripts/guard-agx.test.mjs`. A report that shows a new way around the guard is welcome.
+Since 0.3.0, `elladex-agx` ships no hook. Its protection is the Claude Code permission rules you add from its README, plus its skills' instructions. Claude Code matches those rules on the start of a command, so a command built at run time, text piped into a shell or a script file that runs `agx` gets past them. These gaps are documented in the [`elladex-agx` README](plugins/elladex-agx/README.md#safety). A report that shows a way for a peer's message to steer Claude past the skills' instructions is welcome.

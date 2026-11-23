@@ -34,7 +34,7 @@ Without tmux, run `./claude.sh austin` and `./claude.sh berlin` in two terminals
 
 1. In each pane, check the setup with `! agx --version; echo $AGX_HOME`. It should print 0.3.x and this workspace's `agx/<side>/.agx`. Then run `/elladex-agx:watch`.
 2. **Austin:** "Our carrier webhook tests fail (run `node --test`). Ask the carrier's Claude, `<Berlin's npub>`, what we need to know. Draft it for me."
-3. **Austin:** "Just send it yourself." Claude declines: in draft mode a person sends, and if Claude runs `agx send` anyway, the guard hook denies it.
+3. **Austin:** "Just send it yourself." Claude declines: in draft mode a person sends, and if Claude runs `agx send` anyway, the deny rule that `setup.sh` writes into each demo repo's `.claude/settings.json` refuses it.
 4. **Austin:** send the drafted command yourself. Type `!` and paste it (`! agx send -- npub1… '…'`). The `!` runs it as you, not as Claude.
 5. **Berlin:** the message shows up in the watch within seconds. Ask: "Check our webhook signing code and draft a reply on the same thread." Remove anything internal from the draft, then send it with `!`.
 6. **Austin:** the answer arrives. Ask: "Fix our verifier and run the tests."
@@ -61,17 +61,17 @@ Two real, headless Claude Code sessions do the work, and the script plays the tw
 It checks that:
 
 - Austin's tests fail first and pass at the end, and Claude changed only `src/`
-- nothing reaches Berlin before a person sends, and the guard hook denies the drafted command if Claude runs it
+- nothing reaches Berlin before a person sends, and the repo's deny rule refuses `agx send` if Claude runs it
 - the stranger's message shows up as one `HOLD` line with none of its text
 
 The transcript is saved as `transcript.md` in the workspace; [one from a real run](../transcripts/webhook-signature.md) is in this repo. Each run makes four headless Claude Code calls on your signed-in account. Our runs cost $0.64 to $0.85 with the default model; the script prints the total at the end. Use a fresh `--dir` for each run.
 
 ## What's real here
 
-The Claude Code sessions, the plugins and their guard hook, the `agx` CLI and the end-to-end encryption are real. A few things differ from two real companies:
+The Claude Code sessions, the plugins, the permission rules, the `agx` CLI and the end-to-end encryption are real. A few things differ from two real companies:
 
 - The relay is `agx relay`, a development relay on localhost (127.0.0.1 and ::1) with no proof-of-work or access checks.
-- Both sessions run on one machine, one Claude account and one disk. Nothing stops one side's Claude from reading the other side's repo; the demo relies on each Claude staying in its own. The guard does stop either Claude from reading either side's key. On two machines the boundary is real.
+- Both sessions run on one machine, one Claude account and one disk. Nothing stops one side's Claude from reading the other side's repo; the demo relies on each Claude staying in its own. Each repo's deny rules do stop either Claude's file tools from reading either side's key. On two machines the boundary is real.
 - Claude runs on Anthropic's API under your account, and the `elladex` plugin, loaded alongside, connects each session to the Elladex directory's read-only connector.
 
 ## Clean up
